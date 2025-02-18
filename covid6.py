@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 df = pd.read_csv("day_wise.csv")
 df["Date"] = pd.to_datetime(df["Date"])
@@ -99,8 +100,33 @@ def estimation_of_parameters(df):
 
     return average_beta, average_gamma, average_mu, average_R0
 
+#####estimation_of_parameters(df)
 
-estimation_of_parameters(df)
+def active_vs_recovered_vs_deaths_plot(df):
+    plt.figure(figsize=(10, 6))
+    plt.stackplot(df['Date'], df['Active'], df['Recovered'], df['Deaths'], labels=['Active', 'Recovered', 'Deaths'], alpha=0.75)
+    plt.title("Active vs. Recovered vs. Deaths Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("Count")
+    plt.legend(loc="lower left")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
 
+#####active_vs_recovered_vs_deaths_plot(df)
+
+def growth_rate_cases(df):
+    df['Growth rate'] = df['New cases'].pct_change() * 100  
+    plt.figure(figsize=(10, 6))
+    plt.plot(df['Date'], df['Growth rate'], color="purple", label="Daily Growth Rate of New Cases")
+    plt.title("Daily Growth Rate of New COVID-19 Cases")
+    plt.xlabel("Date")
+    plt.ylabel("Growth Rate (%)")
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+#####growth_rate_cases(df)
 
 
