@@ -50,6 +50,7 @@ N = 17000000
 beta_estimates = []
 gamma_estimates = []
 mu_estimates = []
+R0_estimates = []
 
 for i in range(1, len(df)):
     new_cases = df["New cases"].iloc[i]
@@ -73,10 +74,17 @@ for i in range(1, len(df)):
             mu = new_deaths / I_t
             mu_estimates.append(mu)
 
+        if gamma > 0:
+            R0 = beta / gamma
+            R0_estimates.append(R0)
+
 average_beta = sum(beta_estimates) / len(beta_estimates)
 average_gamma = sum(gamma_estimates) / len(gamma_estimates)
 average_mu = sum(mu_estimates) / len(mu_estimates)
+average_R0 = sum(R0_estimates) / len(R0_estimates)
 
 print(f"Estimated Beta: {average_beta}")
 print(f"Estimated Gamma: {average_gamma}")
 print(f"Estimated Mu: {average_mu}")
+print(f"Estimated R0 (Basic Reproduction Number): {average_R0}")
+
