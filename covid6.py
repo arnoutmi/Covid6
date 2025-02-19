@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 df = pd.read_csv("day_wise.csv")
 df["Date"] = pd.to_datetime(df["Date"])
@@ -31,7 +32,7 @@ def covid_trends(df):
     plt.tight_layout()
     plt.show()
 
-#covid_trends(df)
+#####covid_trends(df)
 
 
 def covid_trends_filtered(df, start_date, end_date):
@@ -43,7 +44,89 @@ def covid_trends_filtered(df, start_date, end_date):
 
     covid_trends(df_filtered)
 
-#covid_trends_filtered(df, "2020-03-01", "2020-06-01")
+#####covid_trends_filtered(df, "2020-03-01", "2020-06-01")
 
+def estimation_of_parameters(df):
+    N = 17000000
+    beta_estimates = []
+    gamma_estimates = []
+    mu_estimates = []
+    R0_estimates = []
+    for i in range(1, len(df)):
+        new_cases = df["New cases"].iloc[i]
+        new_deaths = df["New deaths"].iloc[i]
+        new_recovered = df["New recovered"].iloc[i]
+        
+        I_t = df["Active"].iloc[i]  
+        R_t = df["Recovered"].iloc[i] 
+        D_t = df["Deaths"].iloc[i]
+        S_t = N - I_t - R_t - D_t  
+        
+        if I_t > 0:
+            beta = (new_cases * N) / (S_t * I_t)
+            beta_estimates.append(beta)
+
+            if I_t > 0:
+                gamma = new_recovered / I_t
+                gamma_estimates.append(gamma)
+
+            if I_t > 0:
+                mu = new_deaths / I_t
+                mu_estimates.append(mu)
+
+            if gamma > 0:
+                R0 = beta / gamma
+                R0_estimates.append(R0)
+
+    average_beta = sum(beta_estimates) / len(beta_estimates) if beta_estimates else 0
+    average_gamma = sum(gamma_estimates) / len(gamma_estimates) if gamma_estimates else 0
+    average_mu = sum(mu_estimates) / len(mu_estimates) if mu_estimates else 0
+    average_R0 = sum(R0_estimates) / len(R0_estimates) if R0_estimates else 0
+
+    print(f"Estimated Beta: {average_beta}")
+    print(f"Estimated Gamma: {average_gamma}")
+    print(f"Estimated Mu: {average_mu}")
+    print(f"Estimated R0 (Basic Reproduction Number): {average_R0}")
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(df["Date"].iloc[1:], R0_estimates, label="Estimated R0", color="purple")
+    plt.title("Estimated Basic Reproduction Number (R₀) Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("R₀")
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    return average_beta, average_gamma, average_mu, average_R0
+
+#####estimation_of_parameters(df)
+
+def active_vs_recovered_vs_deaths_plot(df):
+    plt.figure(figsize=(10, 6))
+    plt.stackplot(df['Date'], df['Active'], df['Recovered'], df['Deaths'], labels=['Active', 'Recovered', 'Deaths'], alpha=0.75)
+    plt.title("Active vs. Recovered vs. Deaths Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("Count")
+    plt.legend(loc="lower left")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+#####active_vs_recovered_vs_deaths_plot(df)
+
+def growth_rate_cases(df):
+    df['Growth rate'] = df['New cases'].pct_change() * 100  
+    plt.figure(figsize=(10, 6))
+    plt.plot(df['Date'], df['Growth rate'], color="purple", label="Daily Growth Rate of New Cases")
+    plt.title("Daily Growth Rate of New COVID-19 Cases")
+    plt.xlabel("Date")
+    plt.ylabel("Growth Rate (%)")
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+#####growth_rate_cases(df)
 
 
