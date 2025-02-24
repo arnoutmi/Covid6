@@ -3,6 +3,7 @@ import numpy as np
 import sqlite3
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
 
 # Connect to SQLite Database
 conn = sqlite3.connect("covid_database.db")
@@ -28,9 +29,6 @@ df_global = pd.read_sql_query(query_global, conn)
 
 # Convert Date column to datetime format
 df_global["Date"] = pd.to_datetime(df_global["Date"])
-
-# Close connection
-conn.close()
 
 # ---- Function to Plot COVID-19 Trends ----
 def covid_trends(df):
@@ -133,6 +131,58 @@ def growth_rate_cases(df):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.show()
+
+
+# Fetch data from worldometer_data table
+query_europe = """
+SELECT "Country.Region" as country, ActiveCases, population
+FROM worldometer_data
+WHERE continent = 'Europe';
+"""
+
+df_europe = pd.read_sql_query(query_europe, conn)
+
+
+# Calculate Active Cases per Population
+df_europe['active_cases_per_population'] = df_europe['ActiveCases'] / df_europe['Population']
+
+# Create a choropleth map
+fig = px.choropleth(df_europe, 
+                    locations="country", 
+                    locationmode="country names", 
+                    color="active_cases_per_population", 
+                    hover_name="country", 
+                    color_continuous_scale=px.colors.sequential.Jet,
+                    title="Active COVID-19 Cases in Europe per person",
+                    scope='europe')
+
+# Show the map
+fig.show()
+
+
+query_deaths = """
+SELECT Continent, SUM(TotalDeaths) as total_deaths, SUM(Population) as population
+FROM worldometer_data
+GROUP BY Continent;
+"""
+df_continents = pd.read_sql_query(query_deaths, conn)
+
+# Calculate Death Rate (μ) per Continent
+df_continents['death_rate'] = df_continents['total_deaths'] / df_continents['population'] * 100
+
+
+# Create a bar plot to visualize the death rate for each continent
+plt.figure(figsize=(10, 6))
+sns.barplot(x='Continent', y='death_rate', data=df_continents, palette='viridis')
+plt.title('COVID-19 Death Rate by Continent')
+plt.xlabel('Continent')
+plt.ylabel('Death Rate (%)')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# Close connection
+conn.close()
 
 # ---- Run Functions ----
 covid_trends(df_global)  # Global Trends
