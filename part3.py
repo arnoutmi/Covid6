@@ -189,3 +189,24 @@ covid_trends(df_global)  # Global Trends
 estimation_of_parameters(df_global)  # SIR Model Estimations
 active_vs_recovered_vs_deaths_plot(df_global)  # Stacked Plot
 growth_rate_cases(df_global)  # Growth Rate Analysis
+
+#Find the top 5 US counties with the most deaths and the most recorded cases for the duration of the dataset
+county_query = """
+    SELECT county, date, deaths, confirmed
+    FROM usa_county_wise;
+"""
+county_data = pd.read_sql_query(county_query, conn)
+
+county_deaths = county_data.groupby('county')['deaths'].sum().reset_index()
+county_cases = county_data.groupby('county')['confirmed'].sum().reset_index()
+
+top_5_deaths = county_deaths.sort_values('deaths', ascending=False).head(5)
+top_5_cases = county_cases.sort_values('confirmed', ascending=False).head(5)
+
+print("Top 5 counties by deaths:")
+print(top_5_deaths)
+
+print("Top 5 counties by confirmed cases:")
+print(top_5_cases)
+
+conn.close()
