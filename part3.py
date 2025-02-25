@@ -59,9 +59,10 @@ def covid_trends(df):
 def estimation_of_parameters(df):
     N = 17000000  # Example population size
     beta_estimates = []
-    gamma_estimates = []
+    gamma = 1 / 4.5
     mu_estimates = []
     R0_estimates = []
+    alpha_estimates = []
 
     for i in range(1, len(df)):
         new_cases = df["Confirmed"].iloc[i] - df["Confirmed"].iloc[i - 1]
@@ -74,26 +75,25 @@ def estimation_of_parameters(df):
         S_t = N - I_t - R_t - D_t  
 
         if I_t > 0:
-            beta = (new_cases * N) / (S_t * I_t)
-            beta_estimates.append(beta)
-
-            gamma = new_recovered / I_t if I_t > 0 else 0
-            gamma_estimates.append(gamma)
-
-            mu = new_deaths / I_t if I_t > 0 else 0
+            mu = new_deaths / I_t
             mu_estimates.append(mu)
 
-            if gamma > 0:
-                R0 = beta / gamma
-                R0_estimates.append(R0)
+            beta = ((new_cases + mu * I_t + gamma * I_t) * N) / (S_t * I_t)
+            beta_estimates.append(beta)
+
+            alpha = (gamma * I_t - new_recovered) / R_t if R_t > 0 else 0
+            alpha_estimates.append(alpha)
+
+            R0 = beta / gamma
+            R0_estimates.append(R0)
 
     avg_beta = np.mean(beta_estimates) if beta_estimates else 0
-    avg_gamma = np.mean(gamma_estimates) if gamma_estimates else 0
+    avg_alpha = np.mean(alpha_estimates) if alpha_estimates else 0
     avg_mu = np.mean(mu_estimates) if mu_estimates else 0
     avg_R0 = np.mean(R0_estimates) if R0_estimates else 0
 
     print(f"Estimated Beta: {avg_beta}")
-    print(f"Estimated Gamma: {avg_gamma}")
+    print(f"Estimated Alpha: {avg_alpha}")
     print(f"Estimated Mu: {avg_mu}")
     print(f"Estimated R0 (Basic Reproduction Number): {avg_R0}")
 
@@ -106,7 +106,7 @@ def estimation_of_parameters(df):
     plt.legend()
     plt.tight_layout()
     plt.show()
-
+    
 # ---- Function to Plot Active vs Recovered vs Deaths ----
 def active_vs_recovered_vs_deaths_plot(df):
     plt.figure(figsize=(10, 6))
