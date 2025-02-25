@@ -60,7 +60,7 @@ def covid_trends(df):
 
 # ---- Function to Estimate SIR Model Parameters ---- #
 def estimation_of_parameters(df):
-    N = 17000000  # Example population size
+    N = df["Population"].iloc[0]  
     beta_estimates = []
     gamma = 1 / 4.5
     mu_estimates = []
