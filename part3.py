@@ -8,27 +8,30 @@ import plotly.express as px
 # Connect to SQLite Database
 conn = sqlite3.connect("covid_database.db")
 
-# ---- Fetch Country-Specific Data (United States) ----
-query = """
-SELECT c."Country.Region", c.Active, c.Deaths, c.Recovered, w.population
-FROM country_wise c
-JOIN worldometer_data w ON c."Country.Region" = w."Country.Region"
-WHERE c."Country.Region" = 'United States';
-"""
-
-df_country = pd.read_sql_query(query, conn)
+# ---- Fetch Country Wise Data Series ----
+def fetch_country_data(conn, country='France'):
+    query = f"""
+    SELECT d.Date, c."Country.Region", d.Confirmed, d.Deaths, d.Recovered, d.Active, w.Population
+    FROM day_wise d
+    JOIN worldometer_data w ON w."Country.Region" = '{country}'
+    JOIN country_wise c ON c."Country.Region" = w."Country.Region"
+    WHERE c."Country.Region" = '{country}'
+    ORDER BY d.Date;
+    """
+    df_country = pd.read_sql_query(query, conn)
+    df_country["Date"] = pd.to_datetime(df_country["Date"])
+    return df_country
 
 # ---- Fetch Global Time Series Data ----
-query_global = """
-SELECT Date, Confirmed, Deaths, Recovered, Active
-FROM day_wise
-ORDER BY Date;
-"""
-
-df_global = pd.read_sql_query(query_global, conn)
-
-# Convert Date column to datetime format
-df_global["Date"] = pd.to_datetime(df_global["Date"])
+def fetch_global_data(conn):
+    query_global = """
+    SELECT Date, Confirmed, Deaths, Recovered, Active
+    FROM day_wise
+    ORDER BY Date;
+    """
+    df_global = pd.read_sql_query(query_global, conn)
+    df_global["Date"] = pd.to_datetime(df_global["Date"])
+    return df_global
 
 # ---- Function to Plot COVID-19 Trends ----
 def covid_trends(df):
@@ -55,7 +58,7 @@ def covid_trends(df):
     plt.tight_layout()
     plt.show()
 
-# ---- Function to Estimate SIR Model Parameters ----
+# ---- Function to Estimate SIR Model Parameters ---- #
 def estimation_of_parameters(df):
     N = 17000000  # Example population size
     beta_estimates = []
@@ -106,7 +109,7 @@ def estimation_of_parameters(df):
     plt.legend()
     plt.tight_layout()
     plt.show()
-    
+
 # ---- Function to Plot Active vs Recovered vs Deaths ----
 def active_vs_recovered_vs_deaths_plot(df):
     plt.figure(figsize=(10, 6))
@@ -132,78 +135,83 @@ def growth_rate_cases(df):
     plt.tight_layout()
     plt.show()
 
+# ---- Function to Plot Active Cases per Population in Europe ----
+def plot_europe_active_cases():
+    # Fetch data from worldometer_data table
+    query_europe = """
+    SELECT "Country.Region" as country, ActiveCases, population
+    FROM worldometer_data
+    WHERE continent = 'Europe';
+    """
+    df_europe = pd.read_sql_query(query_europe, conn)
 
-# Fetch data from worldometer_data table
-query_europe = """
-SELECT "Country.Region" as country, ActiveCases, population
-FROM worldometer_data
-WHERE continent = 'Europe';
-"""
+    # Calculate Active Cases per Population
+    df_europe['active_cases_per_population'] = df_europe['ActiveCases'] / df_europe['Population']
 
-df_europe = pd.read_sql_query(query_europe, conn)
+    # Create a choropleth map
+    fig = px.choropleth(df_europe, 
+                        locations="country", 
+                        locationmode="country names", 
+                        color="active_cases_per_population", 
+                        hover_name="country", 
+                        color_continuous_scale=px.colors.sequential.Jet,
+                        title="Active COVID-19 Cases in Europe per person",
+                        scope='europe')
 
+    fig.show()
 
-# Calculate Active Cases per Population
-df_europe['active_cases_per_population'] = df_europe['ActiveCases'] / df_europe['Population']
+# ---- Function to Plot Death Rate by Continent ----
+def plot_death_rate_by_continent():
+    query_deaths = """
+    SELECT Continent, SUM(TotalDeaths) as total_deaths, SUM(Population) as population
+    FROM worldometer_data
+    GROUP BY Continent;
+    """
+    df_continents = pd.read_sql_query(query_deaths, conn)
 
-# Create a choropleth map
-fig = px.choropleth(df_europe, 
-                    locations="country", 
-                    locationmode="country names", 
-                    color="active_cases_per_population", 
-                    hover_name="country", 
-                    color_continuous_scale=px.colors.sequential.Jet,
-                    title="Active COVID-19 Cases in Europe per person",
-                    scope='europe')
+    # Calculate Death Rate (μ) per Continent
+    df_continents['death_rate'] = df_continents['total_deaths'] / df_continents['population'] * 100
 
-# Show the map
-fig.show()
+    # Create a bar plot to visualize the death rate for each continent
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='Continent', y='death_rate', data=df_continents, palette='viridis')
+    plt.title('COVID-19 Death Rate by Continent')
+    plt.xlabel('Continent')
+    plt.ylabel('Death Rate (%)')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
 
+# ---- Function to Fetch and Print Top 5 US Counties by Deaths and Cases ----
+def print_top_5_us_counties():
+    county_query = """
+        SELECT Province_State, Date, Deaths, Confirmed
+        FROM usa_county_wise;
+    """
+    county_data = pd.read_sql_query(county_query, conn)
 
-query_deaths = """
-SELECT Continent, SUM(TotalDeaths) as total_deaths, SUM(Population) as population
-FROM worldometer_data
-GROUP BY Continent;
-"""
-df_continents = pd.read_sql_query(query_deaths, conn)
+    county_deaths = county_data.groupby('Province_State')['Deaths'].sum().reset_index()
+    county_cases = county_data.groupby('Province_State')['Confirmed'].sum().reset_index()
 
-# Calculate Death Rate (μ) per Continent
-df_continents['death_rate'] = df_continents['total_deaths'] / df_continents['population'] * 100
+    top_5_deaths = county_deaths.sort_values('Deaths', ascending=False).head(5)
+    top_5_cases = county_cases.sort_values('Confirmed', ascending=False).head(5)
 
+    print("Top 5 counties by deaths:")
+    print(top_5_deaths)
 
-# Create a bar plot to visualize the death rate for each continent
-plt.figure(figsize=(10, 6))
-sns.barplot(x='Continent', y='death_rate', data=df_continents, palette='viridis')
-plt.title('COVID-19 Death Rate by Continent')
-plt.xlabel('Continent')
-plt.ylabel('Death Rate (%)')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()
-
-#Find the top 5 US counties with the most deaths and the most recorded cases for the duration of the dataset
-county_query = """
-    SELECT Province_State, Date, Deaths, Confirmed
-    FROM usa_county_wise;
-"""
-county_data = pd.read_sql_query(county_query, conn)
-
-county_deaths = county_data.groupby('Province_State')['Deaths'].sum().reset_index()
-county_cases = county_data.groupby('Province_State')['Confirmed'].sum().reset_index()
-
-top_5_deaths = county_deaths.sort_values('Deaths', ascending=False).head(5)
-top_5_cases = county_cases.sort_values('Confirmed', ascending=False).head(5)
-
-print("Top 5 counties by deaths:")
-print(top_5_deaths)
-
-print("Top 5 counties by confirmed cases:")
-print(top_5_cases)
-
-conn.close()
+    print("Top 5 counties by confirmed cases:")
+    print(top_5_cases)
 
 # ---- Run Functions ----
-covid_trends(df_global)  # Global Trends
-estimation_of_parameters(df_global)  # SIR Model Estimations
-active_vs_recovered_vs_deaths_plot(df_global)  # Stacked Plot
-growth_rate_cases(df_global)  # Growth Rate Analysis
+df_country = fetch_country_data(conn) 
+df_global = fetch_global_data(conn) 
+
+covid_trends(df_global)  
+estimation_of_parameters(df_country)  
+active_vs_recovered_vs_deaths_plot(df_global)  
+growth_rate_cases(df_global) 
+plot_europe_active_cases() 
+plot_death_rate_by_continent() 
+print_top_5_us_counties() 
+
+conn.close()
