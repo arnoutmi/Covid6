@@ -1,8 +1,12 @@
 import pandas as pd
 import sqlite3
+import matplotlib.pyplot as plt
 
 df_complete = pd.read_csv('complete.csv')
 print(df_complete.head())
+
+conn = sqlite3.connect("covid_database.db")
+cursor = conn.cursor()
 
 missing_values = df_complete.isnull().sum()
 print("Missing values in each column:\n", missing_values)
@@ -47,3 +51,65 @@ print(f"Total duplicate rows: {df_complete.duplicated().sum()}")
 # handle duplicate entries
 df_complete.drop_duplicates(inplace=True) # keep first occurence
 ###df_complete = df_complete.drop_duplicates(subset=['Date', 'Country', 'Confirmed']) # delete duplicates based on a subset
+
+df_complete.to_sql("complete", conn, if_exists="replace", index=False)
+
+# ---- Fetch Country Wise Data Series ----
+def fetch_country_data(conn, country='France'):
+    query = f"""
+    SELECT d.Date, c."Country.Region", d.Confirmed, d.Deaths, d.Recovered, d.Active, w.Population
+    FROM day_wise d
+    JOIN worldometer_data w ON w."Country.Region" = c."Country.Region"
+    JOIN country_wise c ON c."Country.Region" = '{country}'
+    WHERE c."Country.Region" = '{country}'
+    ORDER BY d.Date;
+    """
+    df_country = pd.read_sql_query(query, conn)
+    df_country["Date"] = pd.to_datetime(df_country["Date"])
+
+    df_country["Active_per_capita"] = df_country["Active"] / df_country["Population"]
+    df_country["Deaths_per_capita"] = df_country["Deaths"] / df_country["Population"]
+    df_country["Recovered_per_capita"] = df_country["Recovered"] / df_country["Population"]
+
+    return df_country
+
+
+# ---- Fetch Global Time Series Data ----
+def fetch_global_data(conn):
+    query_global = """
+    SELECT Date, Confirmed, Deaths, Recovered, Active
+    FROM day_wise
+    ORDER BY Date;
+    """
+    df_global = pd.read_sql_query(query_global, conn)
+    df_global["Date"] = pd.to_datetime(df_global["Date"])
+    return df_global
+
+# ---- Function to Plot COVID-19 Trends ----
+def covid_trends(df):
+    fig, axes = plt.subplots(3, 1, figsize=(15, 9))
+
+    axes[0].plot(df["Date"], df["Active_per_capita"], color="blue", label="Active Cases per Capita")
+    axes[0].set_title("Daily Active COVID-19 Cases (Per Capita)")
+    axes[0].set_xlabel("Date")
+    axes[0].set_ylabel("Cases per Capita")
+    axes[0].legend()
+
+    axes[1].plot(df["Date"], df["Deaths_per_capita"], color="red", label="Deaths per Capita")
+    axes[1].set_title("Daily COVID-19 Deaths (Per Capita)")
+    axes[1].set_xlabel("Date")
+    axes[1].set_ylabel("Deaths per Capita")
+    axes[1].legend()
+
+    axes[2].plot(df["Date"], df["Recovered_per_capita"], color="green", label="Recoveries per Capita")
+    axes[2].set_title("Daily COVID-19 Recoveries (Per Capita)")
+    axes[2].set_xlabel("Date")
+    axes[2].set_ylabel("Recoveries per Capita")
+    axes[2].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+df_country = fetch_country_data(conn, country="France")
+covid_trends(df_country)
+conn.close()
