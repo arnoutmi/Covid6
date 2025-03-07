@@ -8,6 +8,10 @@ print(df_complete.head())
 
 conn = sqlite3.connect("covid_database.db")
 cursor = conn.cursor()
+print(df_complete.head())
+
+conn = sqlite3.connect("covid_database.db")
+cursor = conn.cursor()
 
 missing_values = df_complete.isnull().sum()
 print("Missing values in each column:\n", missing_values)
@@ -110,7 +114,7 @@ def covid_trends(df):
 
     plt.tight_layout()
     plt.show()
-
+    
 df_country = fetch_country_data(conn, country="France")
 covid_trends(df_country)
 
