@@ -112,4 +112,14 @@ def covid_trends(df):
 
 df_country = fetch_country_data(conn, country="France")
 covid_trends(df_country)
+
+cursor.execute('PRAGMA table_info(df_complete);')
+columns = cursor.fetchall()
+
+# Print de kolomnamen
+print("Kolomnamen in df_complete:")
+for column in columns:
+    print(column)
+
+conn.close()
 conn.close()
