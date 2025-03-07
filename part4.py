@@ -1,8 +1,13 @@
 import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 df_complete = pd.read_csv('complete.csv')
+print(df_complete.head())
+
+conn = sqlite3.connect("covid_database.db")
+cursor = conn.cursor()
 print(df_complete.head())
 
 conn = sqlite3.connect("covid_database.db")
@@ -109,31 +114,53 @@ def covid_trends(df):
 
     plt.tight_layout()
     plt.show()
-
+    
 df_country = fetch_country_data(conn, country="France")
 covid_trends(df_country)
 
-# worldwide data per country using group by
-df_global_grouped = df_complete.groupby(["Date", "Country.Region"]).agg({
-    "Confirmed": "sum",
-    "Deaths": "sum",
-    "Recovered": "sum",
-    "Active": "sum"
-}).reset_index()
+country = "France"
+query_country = f"""
+    SELECT d.Date, c."Country.Region", d.Confirmed, d.Deaths, d.Recovered, d.Active, w.Population
+    FROM day_wise d
+    JOIN worldometer_data w ON w."Country.Region" = '{country}'
+    JOIN country_wise c ON c."Country.Region" = w."Country.Region"
+    WHERE c."Country.Region" = '{country}'
+    ORDER BY d.Date;
+    """
+df_country = pd.read_sql_query(query_country, conn)
+df_country["Date"] = pd.to_datetime(df_country["Date"])
 
-# USA county data per state using group by
-county_query = """
-    SELECT "Province.State", "Country.Region", Date, Confirmed, Deaths, Recovered, Active
-    FROM complete
-    WHERE "Country.Region" = 'US';
+# Aggregate data per country over time
+df_country_grouped = df_country.groupby(["Country.Region", "Date"]).sum().reset_index()
+
+# ---- Fetch and Group by US County ----
+query_county = """
+SELECT Province_State, Date, Confirmed, Deaths
+FROM usa_county_wise;
 """
-df_county_data = pd.read_sql_query(county_query, conn)
+df_county = pd.read_sql_query(query_county, conn)
+df_county["Date"] = pd.to_datetime(df_county["Date"])
 
-df_county_grouped = df_county_data.groupby(["Date", "Country.Region", "Province.State"]).agg({
-    "Confirmed": "sum",
-    "Deaths": "sum",
-    "Recovered": "sum",
-    "Active": "sum"
-}).reset_index()
+# Aggregate data per US county over time
+df_county_grouped = df_county.groupby(["Province_State", "Date"]).sum().reset_index()
 
+# ---- Plot Country-Level Data ----
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df_country_grouped, x="Date", y="Confirmed", hue="Country.Region", legend=False)
+plt.title("COVID-19 Confirmed Cases per Country Over Time")
+plt.xlabel("Date")
+plt.ylabel("Confirmed Cases")
+plt.xticks(rotation=45)
+plt.show()
+
+# ---- Plot US County-Level Data ----
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df_county_grouped, x="Date", y="Confirmed", hue="Province_State", legend=False)
+plt.title("COVID-19 Confirmed Cases per US State Over Time")
+plt.xlabel("Date")
+plt.ylabel("Confirmed Cases")
+plt.xticks(rotation=45)
+plt.show()
+
+# Close the database connection
 conn.close()

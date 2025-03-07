@@ -9,7 +9,7 @@ import plotly.express as px
 conn = sqlite3.connect("covid_database.db")
 
 # ---- Fetch Country Wise Data Series ----
-def fetch_country_data(conn, country='France'):
+def fetch_country_data(conn, country='Albania'):
     query = f"""
     SELECT d.Date, c."Country.Region", d.Confirmed, d.Deaths, d.Recovered, d.Active, w.Population
     FROM day_wise d
@@ -209,9 +209,9 @@ df_global = fetch_global_data(conn)
 covid_trends(df_global)  
 estimation_of_parameters(df_country)  
 active_vs_recovered_vs_deaths_plot(df_global)  
-growth_rate_cases(df_global) 
-plot_europe_active_cases() 
-plot_death_rate_by_continent() 
-print_top_5_us_counties() 
+#growth_rate_cases(df_global) 
+#plot_europe_active_cases() 
+#plot_death_rate_by_continent() 
+#print_top_5_us_counties() 
 
 conn.close()
