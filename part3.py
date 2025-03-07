@@ -37,8 +37,8 @@ def fetch_global_data(conn):
 def covid_trends(df):
     fig, axes = plt.subplots(3, 1, figsize=(15, 9))
 
-    axes[0].plot(df["Date"], df["Confirmed"], color="blue", label="Confirmed Cases")
-    axes[0].set_title("Global Daily Confirmed COVID-19 Cases")
+    axes[0].plot(df["Date"], df["Active"], color="blue", label="Active Cases")
+    axes[0].set_title("Global Daily Active COVID-19 Cases")
     axes[0].set_xlabel("Date")
     axes[0].set_ylabel("Cases")
     axes[0].legend()
