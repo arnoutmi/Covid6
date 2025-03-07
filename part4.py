@@ -113,13 +113,27 @@ def covid_trends(df):
 df_country = fetch_country_data(conn, country="France")
 covid_trends(df_country)
 
-cursor.execute('PRAGMA table_info(df_complete);')
-columns = cursor.fetchall()
+# worldwide data per country using group by
+df_global_grouped = df_complete.groupby(["Date", "Country.Region"]).agg({
+    "Confirmed": "sum",
+    "Deaths": "sum",
+    "Recovered": "sum",
+    "Active": "sum"
+}).reset_index()
 
-# Print de kolomnamen
-print("Kolomnamen in df_complete:")
-for column in columns:
-    print(column)
+# USA county data per state using group by
+county_query = """
+    SELECT "Province.State", "Country.Region", Date, Confirmed, Deaths, Recovered, Active
+    FROM complete
+    WHERE "Country.Region" = 'US';
+"""
+df_county_data = pd.read_sql_query(county_query, conn)
 
-conn.close()
+df_county_grouped = df_county_data.groupby(["Date", "Country.Region", "Province.State"]).agg({
+    "Confirmed": "sum",
+    "Deaths": "sum",
+    "Recovered": "sum",
+    "Active": "sum"
+}).reset_index()
+
 conn.close()
