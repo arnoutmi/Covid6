@@ -2,6 +2,7 @@ import pandas as pd
 import sqlite3
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 def fix_missing_values(csv_path, db_path="covid_database.db", method="interpolate"):
     """
@@ -20,7 +21,7 @@ def fix_missing_values(csv_path, db_path="covid_database.db", method="interpolat
 
     df.rename(columns={"WHO.Region": "Region"}, inplace=True)
 
-    df = df[["Date", "Country.Region", "Region", "Active", "Recovered", "Deaths"]]
+    df = df[["Date", "Country.Region", "Region", "Confirmed", "Active", "Recovered", "Deaths"]]
 
     df = df.groupby(["Country.Region", "Region", "Date"]).sum().reset_index()
 
@@ -44,7 +45,7 @@ def fetch_country_data(country, db_path="covid_database.db"):
     Fetches COVID-19 data for a specific country and calculates cumulative totals.
     """
     conn = sqlite3.connect(db_path)
-    query = "SELECT Date, Active, Recovered, Deaths FROM covid_data WHERE `Country.Region` = ?"
+    query = "SELECT Date, Confirmed, Active, Recovered, Deaths FROM covid_data WHERE `Country.Region` = ?"
     df_country = pd.read_sql(query, conn, params=(country,))
     conn.close()
 
@@ -106,10 +107,25 @@ def fetch_region_data(region, db_path="covid_database.db"):
 
     return df_region
 
+
+def fetch_population(country, db_path="covid_database.db"):
+    conn = sqlite3.connect(db_path)
+    query = "SELECT Population FROM worldometer_data WHERE `Country.Region` = ?"
+    df = pd.read_sql(query, conn, params=(country,))
+    conn.close()
+    return df["Population"].iloc[0] if not df.empty else None
+
+
 def covid_trends_country(df, country):
     """
     Plots the COVID-19 trends (Active, Recovered, Deaths) for a given country.
     """
+
+    fig, axes = plt.subplots(3, 1, figsize=(15, 9))
+
+    axes[0].plot(df["Date"], df["Active"], color="blue", label="Active Cases")
+    axes[0].set_title(f"Daily Active COVID-19 Cases in {country}")
+
     fig, axes = plt.subplots(3, 1, figsize=(15, 9))
 
     axes[0].plot(df["Date"], df["Active"], color="blue", label="Active Cases")
@@ -173,13 +189,19 @@ def covid_trends_global(df):
     axes[0].legend()
 
     axes[1].plot(df["Date"], df["Deaths"], color="red", label="Deaths")
+
+    axes[1].set_title(f"Daily COVID-19 Deaths in {country}")
     axes[1].set_title(f"Daily COVID-19 Deaths Globally")
     axes[1].set_xlabel("Date")
     axes[1].set_ylabel("Deaths")
     axes[1].legend()
 
     axes[2].plot(df["Date"], df["Recovered"], color="green", label="Recoveries")
+
+    axes[2].set_title(f"Daily Recoveries from COVID-19 in {country}")
+
     axes[2].set_title(f"Daily Recoveries from COVID-19 Globally")
+
     axes[2].set_xlabel("Date")
     axes[2].set_ylabel("Recoveries")
     axes[2].legend()
@@ -283,13 +305,120 @@ def plot_deaths_by_us_county(db_path="covid_database.db"):
     df_counties = pd.read_sql_query(query, conn)
     conn.close()
 
+    
     # Plot the data
     plt.figure(figsize=(12, 6))
-    sns.barplot(x="Total_Deaths", y="County", data=df_counties, palette="Reds_r")
+    sns.barplot(x="Total_Deaths", y="County", hue="County", data=df_counties, palette="Reds_r", legend=False)
+
     plt.title("Top 20 US Counties by COVID-19 Deaths")
     plt.xlabel("Total Deaths")
     plt.ylabel("County")
     plt.grid(axis="x", linestyle="--", alpha=0.7)
+    plt.show()
+
+    
+# ---- ESTIMATION OF PARAMETERS ----
+def estimation_of_parameters(df, country):
+    """
+    Estimates key epidemiological parameters from the dataset:
+    - Beta (transmission rate)
+    - Gamma (recovery rate, assumed as 1/4.5)
+    - Mu (mortality rate)
+    - R0 (Basic Reproduction Number)
+    - Alpha (additional recovery factor)
+    
+    Parameters:
+    df : DataFrame containing COVID-19 case information.
+    country : str : Name of the country for which the parameters are estimated.
+
+    Returns:
+    None (prints estimated values and plots R0 over time).
+    """
+    
+    # Ensure the dataframe is sorted by date
+    df = df.sort_values("Date").reset_index(drop=True)
+    
+    # Ensure necessary columns exist
+    required_columns = {"Date", "Active", "Recovered", "Deaths", "Confirmed", "Population"}
+    if not required_columns.issubset(df.columns):
+        raise ValueError(f"Dataframe is missing required columns: {required_columns - set(df.columns)}")
+    
+    # Extract the total population from the first row (assuming constant population)
+    N = df["Population"].iloc[0] if "Population" in df.columns else 1e6  # Default to 1M if missing
+
+    # Fixed recovery rate
+    gamma = 1 / 4.5  
+
+    # Lists to store calculated parameters
+    beta_estimates = []
+    mu_estimates = []
+    R0_estimates = []
+    alpha_estimates = []
+
+    for i in range(1, len(df)):
+        new_cases = df["Confirmed"].iloc[i] - df["Confirmed"].iloc[i - 1]
+        new_deaths = df["Deaths"].iloc[i] - df["Deaths"].iloc[i - 1]
+        new_recovered = df["Recovered"].iloc[i] - df["Recovered"].iloc[i - 1]
+
+        I_t = df["Active"].iloc[i]
+        R_t = df["Recovered"].iloc[i]
+        D_t = df["Deaths"].iloc[i]
+        S_t = N - I_t - R_t - D_t  
+
+        # Prevent division errors
+        if I_t > 0 and S_t > 0:
+            mu = new_deaths / I_t if I_t > 0 else 0
+            mu_estimates.append(mu)
+
+            beta = ((new_cases + mu * I_t + gamma * I_t) * N) / (S_t * I_t)
+            beta_estimates.append(beta)
+
+            alpha = (gamma * I_t - new_recovered) / R_t if R_t > 0 else 0
+            alpha_estimates.append(alpha)
+
+            R0 = beta / gamma
+            R0_estimates.append(R0)
+
+    # Compute average estimates
+    avg_beta = np.mean(beta_estimates) if beta_estimates else 0
+    avg_alpha = np.mean(alpha_estimates) if alpha_estimates else 0
+    avg_mu = np.mean(mu_estimates) if mu_estimates else 0
+    avg_R0 = np.mean(R0_estimates) if R0_estimates else 0
+
+    # Print estimated values
+    print(f"Estimated Parameters for {country}:")
+    print(f"Estimated Beta: {avg_beta:.4f}")
+    print(f"Estimated Alpha: {avg_alpha:.4f}")
+    print(f"Estimated Mu: {avg_mu:.4f}")
+    print(f"Estimated R0 (Basic Reproduction Number): {avg_R0:.4f}")
+    
+    # Plot the estimated R0 over time
+    plt.plot(df["Date"].iloc[1:len(R0_estimates)+1], R0_estimates, label="Estimated R0", color="purple")
+    plt.title(f"Estimated Basic Reproduction Number (R₀) in {country} Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("R₀")
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+def plot_cfr_over_time(df):
+    """
+    This function plots the Case Fatality Rate (CFR) over time.
+    The Case Fatality Rate is calculated as CFR = Deaths / Confirmed cases.
+    """
+    # Calculate the Case Fatality Rate (CFR)
+    df['CFR'] = df['Deaths'] / df['Confirmed']
+    
+    # Plot the CFR over time
+    plt.figure(figsize=(10, 6))
+    plt.plot(df["Date"], df["CFR"], label="Case Fatality Rate (CFR)", color='red')
+    plt.xlabel("Date")
+    plt.ylabel("CFR (%)")
+    plt.title("Case Fatality Rate (CFR) Over Time")
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
     plt.show()
 
 # ---- RUNNING THE CODE ----
@@ -299,24 +428,41 @@ csv_path = "complete.csv"  # Update this path if needed
 fix_missing_values(csv_path)
 
 # Fetch country-specific data
-selected_country = 'France'
+selected_country = 'Bulgaria'
 selected_region = 'Europe'
 df_country = fetch_country_data(selected_country)
 df_region = fetch_region_data(selected_region)
 df_global = fetch_global_data()
 
+population = fetch_population(selected_country)
+
+
 # Generate graphs
 
 # ---- COVID TRENDS ---- #
-covid_trends_country(df_country, selected_country)
-covid_trends_region(df_region, selected_region)
-covid_trends_global(df_global)
+
+#covid_trends_country(df_country, selected_country)
+#covid_trends_region(df_region, selected_region)
+#covid_trends_global(df_global)
 
 # ---- ACTIVE VS RECOVERED VS DEATHS ---- #
-active_recovered_deaths_country(df_country, selected_country)
-active_recovered_deaths_region(df_region, selected_region)
-active_recovered_deaths_global(df_global)
+#active_recovered_deaths_country(df_country, selected_country)
+#active_recovered_deaths_region(df_region, selected_region)
+#active_recovered_deaths_global(df_global)
 
 # ---- DEATH PLOTS COUNTY AND CONTINENT ---- #
-plot_death_rate_by_continent()
-plot_deaths_by_us_county()
+#plot_death_rate_by_continent()
+#plot_deaths_by_us_county()
+#plt.show()
+
+# ---- ESTIMATION OF PARAMETERS ---- #
+if population:
+    df_country["Population"] = population
+    estimation_of_parameters(df_country, selected_country)
+else:
+    print(f"Population data for {selected_country} not found.")
+    
+# ---- CASE FATALITY RATE ---- #
+plot_cfr_over_time(df_country)
+
+
