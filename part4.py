@@ -301,7 +301,7 @@ def plot_deaths_by_us_county(db_path="covid_database.db"):
     plt.show()
     
 # ---- ESTIMATION OF PARAMETERS ----
-def estimation_of_parameters(df):
+def estimation_of_parameters(df, country):
     """
     Estimates key epidemiological parameters from the dataset:
     - Beta (transmission rate)
@@ -312,6 +312,7 @@ def estimation_of_parameters(df):
     
     Parameters:
     df : DataFrame containing COVID-19 case information.
+    country : str : Name of the country for which the parameters are estimated.
 
     Returns:
     None (prints estimated values and plots R0 over time).
@@ -368,6 +369,7 @@ def estimation_of_parameters(df):
     avg_R0 = np.mean(R0_estimates) if R0_estimates else 0
 
     # Print estimated values
+    print(f"Estimated Parameters for {country}:")
     print(f"Estimated Beta: {avg_beta:.4f}")
     print(f"Estimated Alpha: {avg_alpha:.4f}")
     print(f"Estimated Mu: {avg_mu:.4f}")
@@ -375,9 +377,28 @@ def estimation_of_parameters(df):
     
     # Plot the estimated R0 over time
     plt.plot(df["Date"].iloc[1:len(R0_estimates)+1], R0_estimates, label="Estimated R0", color="purple")
-    plt.title("Estimated Basic Reproduction Number (R₀) Over Time")
+    plt.title(f"Estimated Basic Reproduction Number (R₀) in {country} Over Time")
     plt.xlabel("Date")
     plt.ylabel("R₀")
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+def plot_cfr_over_time(df):
+    """
+    This function plots the Case Fatality Rate (CFR) over time.
+    The Case Fatality Rate is calculated as CFR = Deaths / Confirmed cases.
+    """
+    # Calculate the Case Fatality Rate (CFR)
+    df['CFR'] = df['Deaths'] / df['Confirmed']
+    
+    # Plot the CFR over time
+    plt.figure(figsize=(10, 6))
+    plt.plot(df["Date"], df["CFR"], label="Case Fatality Rate (CFR)", color='red')
+    plt.xlabel("Date")
+    plt.ylabel("CFR (%)")
+    plt.title("Case Fatality Rate (CFR) Over Time")
     plt.xticks(rotation=45)
     plt.legend()
     plt.tight_layout()
@@ -390,7 +411,7 @@ csv_path = "complete.csv"  # Update this path if needed
 fix_missing_values(csv_path)
 
 # Fetch country-specific data
-selected_country = 'Albania'
+selected_country = 'Bulgaria'
 selected_region = 'Europe'
 df_country = fetch_country_data(selected_country)
 df_region = fetch_region_data(selected_region)
@@ -417,6 +438,9 @@ population = fetch_population(selected_country)
 # ---- ESTIMATION OF PARAMETERS ---- #
 if population:
     df_country["Population"] = population
-    estimation_of_parameters(df_country)
+    estimation_of_parameters(df_country, selected_country)
 else:
     print(f"Population data for {selected_country} not found.")
+    
+# ---- CASE FATALITY RATE ---- #
+plot_cfr_over_time(df_country)
