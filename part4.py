@@ -107,6 +107,7 @@ def fetch_region_data(region, db_path="covid_database.db"):
 
     return df_region
 
+
 def fetch_population(country, db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
     query = "SELECT Population FROM worldometer_data WHERE `Country.Region` = ?"
@@ -114,10 +115,17 @@ def fetch_population(country, db_path="covid_database.db"):
     conn.close()
     return df["Population"].iloc[0] if not df.empty else None
 
+
 def covid_trends_country(df, country):
     """
     Plots the COVID-19 trends (Active, Recovered, Deaths) for a given country.
     """
+
+    fig, axes = plt.subplots(3, 1, figsize=(15, 9))
+
+    axes[0].plot(df["Date"], df["Active"], color="blue", label="Active Cases")
+    axes[0].set_title(f"Daily Active COVID-19 Cases in {country}")
+
     fig, axes = plt.subplots(3, 1, figsize=(15, 9))
 
     axes[0].plot(df["Date"], df["Active"], color="blue", label="Active Cases")
@@ -181,13 +189,19 @@ def covid_trends_global(df):
     axes[0].legend()
 
     axes[1].plot(df["Date"], df["Deaths"], color="red", label="Deaths")
+
+    axes[1].set_title(f"Daily COVID-19 Deaths in {country}")
     axes[1].set_title(f"Daily COVID-19 Deaths Globally")
     axes[1].set_xlabel("Date")
     axes[1].set_ylabel("Deaths")
     axes[1].legend()
 
     axes[2].plot(df["Date"], df["Recovered"], color="green", label="Recoveries")
+
+    axes[2].set_title(f"Daily Recoveries from COVID-19 in {country}")
+
     axes[2].set_title(f"Daily Recoveries from COVID-19 Globally")
+
     axes[2].set_xlabel("Date")
     axes[2].set_ylabel("Recoveries")
     axes[2].legend()
@@ -290,15 +304,18 @@ def plot_deaths_by_us_county(db_path="covid_database.db"):
     """
     df_counties = pd.read_sql_query(query, conn)
     conn.close()
+
     
     # Plot the data
     plt.figure(figsize=(12, 6))
     sns.barplot(x="Total_Deaths", y="County", hue="County", data=df_counties, palette="Reds_r", legend=False)
+
     plt.title("Top 20 US Counties by COVID-19 Deaths")
     plt.xlabel("Total Deaths")
     plt.ylabel("County")
     plt.grid(axis="x", linestyle="--", alpha=0.7)
     plt.show()
+
     
 # ---- ESTIMATION OF PARAMETERS ----
 def estimation_of_parameters(df, country):
@@ -416,11 +433,14 @@ selected_region = 'Europe'
 df_country = fetch_country_data(selected_country)
 df_region = fetch_region_data(selected_region)
 df_global = fetch_global_data()
+
 population = fetch_population(selected_country)
+
 
 # Generate graphs
 
 # ---- COVID TRENDS ---- #
+
 #covid_trends_country(df_country, selected_country)
 #covid_trends_region(df_region, selected_region)
 #covid_trends_global(df_global)
@@ -444,3 +464,5 @@ else:
     
 # ---- CASE FATALITY RATE ---- #
 plot_cfr_over_time(df_country)
+
+
