@@ -3,6 +3,7 @@ import sqlite3
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import plotly.express as px
 
 def fix_missing_values(csv_path, db_path="covid_database.db", method="interpolate"):
     """
@@ -190,7 +191,7 @@ def covid_trends_global(df):
 
     axes[1].plot(df["Date"], df["Deaths"], color="red", label="Deaths")
 
-    axes[1].set_title(f"Daily COVID-19 Deaths in {country}")
+    
     axes[1].set_title(f"Daily COVID-19 Deaths Globally")
     axes[1].set_xlabel("Date")
     axes[1].set_ylabel("Deaths")
@@ -198,7 +199,7 @@ def covid_trends_global(df):
 
     axes[2].plot(df["Date"], df["Recovered"], color="green", label="Recoveries")
 
-    axes[2].set_title(f"Daily Recoveries from COVID-19 in {country}")
+   
 
     axes[2].set_title(f"Daily Recoveries from COVID-19 Globally")
 
@@ -421,6 +422,39 @@ def plot_cfr_over_time(df):
     plt.tight_layout()
     plt.show()
 
+def plot_europe_active_cases(db_path="covid_database.db"):
+    """
+    Plots a choropleth map of Active COVID-19 Cases per Population in Europe.
+    """
+
+    # Connect to the database
+    conn = sqlite3.connect(db_path)
+
+    # Fetch relevant data
+    query_europe = """
+    SELECT "Country.Region" as country, ActiveCases, Population
+    FROM worldometer_data
+    WHERE Continent = 'Europe' AND Population > 0 AND ActiveCases IS NOT NULL;
+    """
+    df_europe = pd.read_sql_query(query_europe, conn)
+    conn.close()
+
+    # Calculate Active Cases per Population
+    df_europe['active_cases_per_population'] = df_europe['ActiveCases'] / df_europe['Population']
+
+    # Create the choropleth map
+    fig = px.choropleth(
+        df_europe,
+        locations="country",
+        locationmode="country names",
+        color="active_cases_per_population",
+        hover_name="country",
+        color_continuous_scale=px.colors.sequential.Jet,
+        title="🗺 Active COVID-19 Cases in Europe (per Population)",
+        scope='europe'
+    )
+    fig.show()
+ 
 # ---- RUNNING THE CODE ----
 
 # Load the CSV into SQLite and process data
@@ -436,18 +470,17 @@ df_global = fetch_global_data()
 
 population = fetch_population(selected_country)
 
-
 # Generate graphs
 
 # ---- COVID TRENDS ---- #
 
 #covid_trends_country(df_country, selected_country)
-#covid_trends_region(df_region, selected_region)
+covid_trends_region(df_region, selected_region)
 #covid_trends_global(df_global)
 
 # ---- ACTIVE VS RECOVERED VS DEATHS ---- #
 #active_recovered_deaths_country(df_country, selected_country)
-#active_recovered_deaths_region(df_region, selected_region)
+active_recovered_deaths_region(df_region, selected_region)
 #active_recovered_deaths_global(df_global)
 
 # ---- DEATH PLOTS COUNTY AND CONTINENT ---- #
@@ -465,4 +498,4 @@ else:
 # ---- CASE FATALITY RATE ---- #
 plot_cfr_over_time(df_country)
 
-
+plot_europe_active_cases()
