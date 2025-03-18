@@ -30,11 +30,18 @@ def fetch_region_list(db_path="covid_database.db"):
 
 def fetch_country_data(country, db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
-    query = "SELECT Date, Confirmed, Active, Recovered, Deaths FROM covid_data WHERE `Country.Region` = ?"
+    query = """
+    SELECT cd.Date, cd.Confirmed, cd.Active, cd.Recovered, cd.Deaths, wd.Population
+    FROM covid_data cd
+    LEFT JOIN worldometer_data wd
+    ON cd.`Country.Region` = wd.`Country.Region`
+    WHERE cd.`Country.Region` = ?
+    ORDER BY cd.Date
+    """
     df_country = pd.read_sql(query, conn, params=(country,))
     conn.close()
     df_country["Date"] = pd.to_datetime(df_country["Date"])
-    return df_country.sort_values("Date")
+    return df_country
 
 def fetch_global_data(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
@@ -470,6 +477,179 @@ def plot_case_distribution_pie_chart(df, region, ax):
     
     ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 
+def plot_daily_new_cases(df):
+    """Plots daily new cases as a bar chart."""
+    st.subheader("📊 Daily New Cases")
+    df['New Cases'] = df['Confirmed'].diff()
+    fig = px.bar(df, x='Date', y='New Cases', color='New Cases', color_continuous_scale='Blues')
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_deaths_over_time(df):
+    """Plots deaths over time as an area chart."""
+    st.subheader("⚰️ Deaths Over Time")
+    fig = px.area(df, x='Date', y='Deaths', color_discrete_sequence=['red'])
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_case_fatality_rate(df):
+    """Plots Case Fatality Rate (CFR) over time."""
+    st.subheader("📉 Case Fatality Rate (CFR)")
+    df['CFR'] = (df['Deaths'] / df['Confirmed']) * 100
+    fig = px.line(df, x='Date', y='CFR', markers=True, color_discrete_sequence=['black'])
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_recovery_vs_death_rate(df):
+    """Plots recovery rate vs. death rate over time."""
+    st.subheader("💚 Recovery Rate vs ⚰️ Death Rate")
+    df["Recovery Rate"] = (df["Recovered"] / df["Confirmed"]) * 100
+    df["Death Rate"] = (df["Deaths"] / df["Confirmed"]) * 100
+    fig = px.line(df, x="Date", y=["Recovery Rate", "Death Rate"], markers=True,
+                  labels={"value": "Rate (%)", "variable": "Metric"})
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_daily_testing_positive_rate(df):
+    """Plots percentage of positive tests if test data is available."""
+    if "Tests" in df.columns and df["Tests"].notnull().sum() > 0:
+        st.subheader("🧪 Test Positivity Rate Over Time")
+        df["Positivity Rate"] = (df["Confirmed"] / df["Tests"]) * 100
+        fig = px.line(df, x="Date", y="Positivity Rate", markers=True,
+                      labels={"Positivity Rate": "Positive Test %"})
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("⚠️ No testing data available for this country.")
+
+def plot_active_vs_recovered_cases(df):
+    """Shows active vs recovered cases over time."""
+    st.subheader("📊 Active vs. Recovered Cases")
+    fig = px.area(df, x="Date", y=["Active", "Recovered"], 
+                  labels={"value": "Number of Cases", "variable": "Case Type"})
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_peak_case_and_death_days(df):
+    """Displays the day with the highest new cases and deaths."""
+    df["New Cases"] = df["Confirmed"].diff()
+    df["New Deaths"] = df["Deaths"].diff()
+    
+    peak_cases_date = df.loc[df["New Cases"].idxmax(), "Date"]
+    peak_cases = df["New Cases"].max()
+
+    peak_deaths_date = df.loc[df["New Deaths"].idxmax(), "Date"]
+    peak_deaths = df["New Deaths"].max()
+
+    st.markdown(f"""
+    🏆 **Peak New Cases:** {peak_cases:,} on **{peak_cases_date.date()}**  
+    ⚰️ **Peak Deaths:** {peak_deaths:,} on **{peak_deaths_date.date()}**  
+    """)
+
+def plot_moving_average_trend(df, window=7):
+    """Plots a moving average of daily new cases to smooth fluctuations."""
+    st.subheader(f"📉 {window}-Day Moving Average of New Cases")
+    df["New Cases"] = df["Confirmed"].diff()
+    df["Moving Avg"] = df["New Cases"].rolling(window=window).mean()
+    
+    fig = px.line(df, x="Date", y="Moving Avg", markers=True, color_discrete_sequence=['blue'],
+                  labels={"Moving Avg": f"{window}-Day Avg Cases"})
+    st.plotly_chart(fig, use_container_width=True)
+
+def country_dashboard_page(selected_country, start_date, end_date, db_path="covid_database.db"):
+    # Fetch country data
+    df_country = fetch_country_data(selected_country)
+    df_filtered = filter_data_by_date(df_country, start_date, end_date)
+
+
+    # Compute country metrics
+    total_confirmed = df_filtered["Confirmed"].iloc[-1] - df_filtered["Confirmed"].iloc[0] if not df_filtered.empty else 0
+    total_deaths = df_filtered["Deaths"].iloc[-1] - df_filtered["Deaths"].iloc[0] if not df_filtered.empty else 0
+    total_recovered = df_filtered["Recovered"].iloc[-1] - df_filtered["Recovered"].iloc[0] if not df_filtered.empty else 0
+    total_active = df_filtered["Active"].iloc[-1] - df_filtered["Active"].iloc[0] if not df_filtered.empty else 0
+    mortality_rate = (total_deaths / total_confirmed * 100) if total_confirmed > 0 else 0.0
+
+    st.markdown("""
+        <style>
+        .box-yellow { background-color: #FFF9DB; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-bottom: 15px; }
+        .box-green { background-color: #E8F8F5; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-bottom: 15px; }
+        .box-blue { background-color: #E8F4FD; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-bottom: 15px; }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # -------- DASHBOARD HEADER -------- #
+    st.markdown(f"""
+    <h4 style='text-align: center;'>🌍 COVID-19 Analytics Dashboard for {selected_country}</h4>
+    <h6 style='text-align: center;'>Analysis Period: <b>{start_date.strftime('%Y-%m-%d')}</b> to <b>{end_date.strftime('%Y-%m-%d')}</b></h6>
+    """, unsafe_allow_html=True)
+
+    country_params = estimate_parameters_for_country(df_country, selected_country)
+
+    # --------- FIRST ROW: METRICS, AREA CHART, PIE CHART --------- #
+    col1, col2, col3 = st.columns([2, 4, 3])
+
+    # Box 1: Metrics
+    with col1:
+        st.markdown(f"""
+        <div class="box-yellow">
+            <h4>📊 {selected_country} Metrics</h4>
+            <p><b>Total Confirmed Cases:</b> {total_confirmed:,}</p>
+            <p><b>Total Deaths:</b> {total_deaths:,}</p>
+            <p><b>Mortality Rate (%):</b> {mortality_rate:.2f}%</p>
+            <p><b>β (Transmission Rate):</b> {country_params['Beta']:.2f}</p>
+            <p><b>R₀ (Reproduction Number):</b> {country_params['R0']:.2f}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Box 2: Area Chart (Stacked)
+    with col2:
+        st.markdown("""
+        <div class="box-green"></div>
+        """, unsafe_allow_html=True)
+
+        fig_area = px.area(
+            df_filtered,
+            x="Date",
+            y=["Active", "Recovered", "Deaths"],
+            color_discrete_map={"Active": '#1f77b4', "Recovered": '#2ca02c', "Deaths": '#d62728'},
+            labels={"value": "Number of Cases", "variable": "Case Type"},
+            title=f"{selected_country} Case Distribution Over Time"
+        )
+        fig_area.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+        st.plotly_chart(fig_area, use_container_width=True)
+
+    # Box 3: Pie Chart
+    with col3:
+        st.markdown("""
+        <div class="box-blue"></div>
+        """, unsafe_allow_html=True)
+
+        pie_chart = plot_case_distribution_pie(total_active, total_recovered, total_deaths)
+        st.plotly_chart(pie_chart, use_container_width=True)
+
+    col4, col5, col6 = st.columns([1, 1, 1])  # 3 equal-width columns
+
+    col4, col5, col6 = st.columns([1, 1, 1])  # 3 equal-width columns
+
+    with col4:
+        st.markdown("""<div class="box-green"><h4>📈 Daily New Cases</h4></div>""", unsafe_allow_html=True)
+        df_filtered["New Cases"] = df_filtered["Confirmed"].diff()
+        fig_new_cases = px.bar(df_filtered, x='Date', y='New Cases', color='New Cases',
+                           color_continuous_scale='Blues', height=250)
+        fig_new_cases.update_layout(margin=dict(l=20, r=20, t=30, b=20))
+        st.plotly_chart(fig_new_cases, use_container_width=True)
+
+    with col5:  
+        st.markdown("""<div class="box-green"><h4>⚰️ Deaths Over Time</h4></div>""", unsafe_allow_html=True)
+        fig_deaths = px.area(df_filtered, x='Date', y='Deaths', color_discrete_sequence=['red'], height=250)
+        fig_deaths.update_layout(margin=dict(l=20, r=20, t=30, b=20))
+        st.plotly_chart(fig_deaths, use_container_width=True)
+
+    with col6:
+        st.markdown("""<div class="box-green"><h4>📉 Case Fatality Rate (CFR)</h4></div>""", unsafe_allow_html=True)
+        df_filtered["CFR"] = (df_filtered["Deaths"] / df_filtered["Confirmed"]) * 100
+        fig_cfr = px.line(df_filtered, x='Date', y='CFR', markers=True, color_discrete_sequence=['black'], height=250)
+        fig_cfr.update_layout(margin=dict(l=20, r=20, t=30, b=20))
+        st.plotly_chart(fig_cfr, use_container_width=True)
+
+    # -------- FOOTER -------- #
+    st.markdown("---")
+    st.markdown("*For educational and research purposes only*")
+
 def global_dashboard_page(start_date, end_date, db_path="covid_database.db"):
     # ---------------- FETCH GLOBAL DATA ---------------- #
     df_global = fetch_global_data_filtered(start_date, end_date, db_path)
@@ -641,8 +821,7 @@ def region_dashboard_page(selected_region, start_date, end_date, db_path="covid_
     st.markdown("---")
     st.markdown("*For educational and research purposes only*")
 
-def country_dashboard_page(selected_country, start_date, end_date, db_path="covid.database.db"):
-    return
+
 
 # -------- HOME PAGE ANALYTICS -------- #
 
