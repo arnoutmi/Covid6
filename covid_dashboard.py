@@ -5,6 +5,9 @@ from datetime import datetime
 import plotly.express as px
 import numpy as np
 import matplotlib.pyplot as plt
+import statsmodels as sm
+import plotly.graph_objects as go
+
 
 # -------- PAGE CONFIG -------- #
 st.set_page_config(page_title="COVID-19 Data Dashboard", layout="wide")
@@ -649,6 +652,175 @@ def plot_moving_average_trend(df, window=7):
                   labels={"Moving Avg": f"{window}-Day Avg Cases"})
     st.plotly_chart(fig, use_container_width=True)
 
+def plot_death_vs_population_by_region(db_path="covid_database.db"):
+    """
+    Scatter plot comparing total deaths (latest date) vs population for each country.
+    Colors indicate the region (from covid_data).
+    """
+    import sqlite3
+    import pandas as pd
+    import plotly.express as px
+    import streamlit as st
+
+    conn = sqlite3.connect(db_path)
+
+    # Get latest date in covid_data
+    latest_date_query = "SELECT MAX(Date) as latest_date FROM covid_data"
+    latest_date = pd.read_sql_query(latest_date_query, conn).iloc[0]["latest_date"]
+
+    # Fetch total deaths on latest date per country along with their region
+    deaths_query = f"""
+        SELECT `Country.Region`, SUM(Deaths) as Total_Deaths, Region
+        FROM covid_data
+        WHERE Date = '{latest_date}'
+        GROUP BY `Country.Region`, Region
+    """
+    deaths_df = pd.read_sql_query(deaths_query, conn)
+
+    # Fetch population per country
+    pop_query = """
+        SELECT `Country.Region`, Population
+        FROM worldometer_data
+        WHERE Population IS NOT NULL
+    """
+    pop_df = pd.read_sql_query(pop_query, conn)
+    conn.close()
+
+    # Merge population and deaths/region
+    df = pd.merge(deaths_df, pop_df, on="Country.Region", how="inner")
+    df = df[df["Total_Deaths"] > 0]  # Optional: Filter countries with no deaths
+
+    # Color mapping for regions
+    region_colors = {
+    "Europe": "#1f77b4",               # Blue
+    "Americas": "#d62728",             # Bright Red
+    "Africa": "#2ca02c",               # Green
+    "Eastern Mediterranean": "#FFD700",  # Yellow (Gold)
+    "Western Pacific": "#ff7f0e",      # Orange
+    "South-East Asia": "#e377c2"       # Pink
+}
+
+    # Plot the scatter
+    fig = px.scatter(
+        df,
+        x="Population",
+        y="Total_Deaths",
+        color="Region",
+        log_x=True,
+        log_y=True, 
+        color_discrete_map=region_colors,
+        hover_name="Country.Region",
+        labels={"Population": "Population", "Total_Deaths": "Total Deaths"},
+    )
+    
+    
+    fig.update_traces(marker=dict(size=10))
+
+    min_x = df["Population"].min()
+    max_x = df["Population"].max()
+    min_y = df["Total_Deaths"].min()
+    max_y = df["Total_Deaths"].max()
+
+# Adjust the slope based on data ratio (like y = x)
+    fig.add_shape(
+    type="line",
+    x0=min_x,
+    y0=min_y,
+    x1=max_x,
+    y1=max_y,
+    line=dict(color="black", width=2, dash="dash")
+)
+
+    fig.update_layout(
+        title="Total Deaths vs Population by Region",
+        xaxis_title="Population",
+        yaxis_title="Total Deaths",
+        height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_confirmed_vs_population_by_region(db_path="covid_database.db"):
+    """
+    Scatter plot comparing total confirmed cases (latest date) vs population for each country.
+    Colors indicate the region (from covid_data).
+    """
+    import sqlite3
+    import pandas as pd
+    import plotly.express as px
+    import streamlit as st
+
+    conn = sqlite3.connect(db_path)
+
+    # Get latest date in covid_data
+    latest_date_query = "SELECT MAX(Date) as latest_date FROM covid_data"
+    latest_date = pd.read_sql_query(latest_date_query, conn).iloc[0]["latest_date"]
+
+    # Fetch total confirmed cases on latest date per country along with their region
+    confirmed_query = f"""
+        SELECT `Country.Region`, SUM(Confirmed) as Total_Confirmed, Region
+        FROM covid_data
+        WHERE Date = '{latest_date}'
+        GROUP BY `Country.Region`, Region
+    """
+    confirmed_df = pd.read_sql_query(confirmed_query, conn)
+
+    # Fetch population per country
+    pop_query = """
+        SELECT `Country.Region`, Population
+        FROM worldometer_data
+        WHERE Population IS NOT NULL
+    """
+    pop_df = pd.read_sql_query(pop_query, conn)
+    conn.close()
+
+    # Merge population and confirmed/region
+    df = pd.merge(confirmed_df, pop_df, on="Country.Region", how="inner")
+    df = df[df["Total_Confirmed"] > 0]  # Filter countries with no confirmed cases
+
+    # Color mapping for regions (with Eastern Mediterranean as yellow)
+    region_colors = {
+        "Europe": "#1f77b4",                 # Blue
+        "Americas": "#d62728",               # Red
+        "Africa": "#2ca02c",                 # Green
+        "Eastern Mediterranean": "#FFD700",  # Yellow (Gold)
+        "Western Pacific": "#ff7f0e",        # Orange
+        "South-East Asia": "#e377c2"         # Pink
+    }
+
+    # Plot the scatter
+    fig = px.scatter(
+        df,
+        x="Population",
+        y="Total_Confirmed",
+        color="Region",
+        log_x=True,
+        log_y=True,
+        color_discrete_map=region_colors,
+        hover_name="Country.Region",
+        labels={"Population": "Population", "Total_Confirmed": "Total Confirmed Cases"},
+    )
+    fig.update_traces(marker=dict(size=10))
+
+    # Add diagonal reference line
+    fig.add_shape(
+        type="line",
+        x0=df["Population"].min(),
+        y0=df["Total_Confirmed"].min(),
+        x1=df["Population"].max(),
+        y1=df["Total_Confirmed"].max(),
+        line=dict(color="black", width=2, dash="dash")
+    )
+
+    fig.update_layout(
+        title="Total Confirmed Cases vs Population by Region",
+        xaxis_title="Population",
+        yaxis_title="Total Confirmed Cases",
+        height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
 def country_dashboard_page(selected_country, start_date, end_date, db_path="covid_database.db"):
     # Fetch country data
     df_country = fetch_country_data(selected_country)
@@ -1006,7 +1178,10 @@ def user_controlled_analysis_page():
     with col2:
         analysis_choice = st.selectbox(
             "Choose what you want to analyze:",
-            ["Select Analysis Option...", "Compare Two Countries"]
+            ["Select Analysis Option...",
+            "Compare Two Countries",
+            "Death vs Population Scatter",
+            "Confirmed vs Population Scatter"]
         )
 
     if analysis_choice == "Compare Two Countries":
@@ -1085,6 +1260,13 @@ def user_controlled_analysis_page():
 
             fig.update_layout(height=400, width=800, margin=dict(l=20, r=20, t=50, b=20))
             st.plotly_chart(fig, use_container_width=True)
+    elif analysis_choice == "Death vs Population Scatter":
+        st.subheader("🌍 Scatter Plot: Total Deaths vs Population by Region")
+        plot_death_vs_population_by_region()
+    
+    elif analysis_choice == "Confirmed vs Population Scatter":
+        st.subheader("🌍 Scatter Plot: Total Confirmed Cases vs Population by Region")
+        plot_confirmed_vs_population_by_region()
 
 # -------- SIDEBAR NAVIGATION -------- #
 
