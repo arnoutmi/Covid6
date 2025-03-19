@@ -633,16 +633,21 @@ def plot_case_distribution_pie_chart(df, region, ax):
 def plot_daily_new_cases(df):
     df['New Cases'] = df['Confirmed'].diff()
     fig = px.bar(
-        df, x='Date', y='New Cases', color='New Cases', color_continuous_scale='Blues',
+        df, x='Date', y='New Cases',
         labels={"New Cases": "Daily New Cases"},
-        title= 'Daily New Cases'
+        title='Daily New Cases'
     )
+    
+    # Set all bars to Steel Blue (#4682B4)
+    fig.update_traces(marker_color='#4682B4')
+
     fig.update_layout(
         height=300,
         width=600,
         margin=dict(l=20, r=20, t=50, b=20),
         showlegend=False
     )
+    
     return fig
 
 def plot_deaths_over_time(df):
@@ -785,15 +790,20 @@ def fetch_top_countries(metric, db_path="covid_database.db", top_n=5):
     return df_top
 
 def plot_top_countries(metric, title, color):
-    """Plots a bar chart of the top N countries for a given metric."""
-    df_top = fetch_top_countries(metric)
+    """Plots a bar chart of the top N countries for a given metric with a uniform color."""
+    df_top = fetch_top_countries(metric)  # Ensure this function returns a valid dataframe
 
     fig = px.bar(
         df_top, x="Total", y="Country", orientation="h", 
-        title=title, color="Total", color_continuous_scale=color
+        title=title
     )
+    
+    # Apply the given color to all bars
+    fig.update_traces(marker=dict(color=color))
+
     fig.update_layout(yaxis=dict(categoryorder="total ascending"), height=400)
     st.plotly_chart(fig, use_container_width=True)
+
 
 
 
@@ -1408,8 +1418,7 @@ def user_controlled_analysis_page():
         analysis_choice = st.selectbox(
             "Choose what you want to analyze:",
             ["Select Analysis Option...",
-            "Compare Two Countries", "Compare Two Regions", "Country rankings", "region rankings",
-            "Death vs Population Scatter",
+            "Compare Two Countries","Country rankings", "Death vs Population Scatter",
             "Confirmed vs Population Scatter"]
         )
     
@@ -1420,13 +1429,13 @@ def user_controlled_analysis_page():
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            plot_top_countries("Confirmed", "Top 5 Countries by Confirmed Cases", "Blues")
+            plot_top_countries("Confirmed", "Top 5 Countries by Confirmed Cases", "#4682B4")
 
         with col2:
-            plot_top_countries("Deaths", "Top 5 Countries by Deaths", "Reds")
+            plot_top_countries("Deaths", "Top 5 Countries by Deaths", "#B22222")
 
         with col3:
-            plot_top_countries("Recovered", "Top 5 Countries by Recoveries", "Greens")
+            plot_top_countries("Recovered", "Top 5 Countries by Recoveries", "#2E8B57")
         
         # Spacer for separation
         st.markdown("<br><hr><br>", unsafe_allow_html=True)
@@ -1458,9 +1467,9 @@ def user_controlled_analysis_page():
 
                 # Display the rankings along with the confirmed, deaths, and recovered cases
                 st.write(f"Rankings for {selected_country}:")
-                st.write(f"Confirmed Cases Rank: {confirmed_rank} (Confirmed: {confirmed:,})")
-                st.write(f"Deaths Rank: {deaths_rank} ( Deaths: {deaths:,})")
-                st.write(f"Recovered Cases Rank: {recovered_rank} ( Recovered: {recovered:,})")
+                st.write(f"Confirmed Cases Rank: {confirmed_rank} ({confirmed:,})")
+                st.write(f"Deaths Rank: {deaths_rank} ({deaths:,})")
+                st.write(f"Recovered Cases Rank: {recovered_rank} ({recovered:,})")
             else:
                 st.write(f"Sorry, there isn't enough data available for {selected_country}.")
         else:
