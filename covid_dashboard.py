@@ -734,6 +734,69 @@ def plot_moving_average_trend(df, window=7):
                   labels={"Moving Avg": f"{window}-Day Avg Cases"})
     st.plotly_chart(fig, use_container_width=True)
 
+def fetch_country_rankings(db_path="covid_database.db"):
+    try:
+        # Connect to SQLite database
+        conn = sqlite3.connect(db_path)
+
+        # SQL query to fetch country-wise data
+        query = """
+            SELECT `Country.Region`, 
+                   SUM(Confirmed) AS Confirmed, 
+                   SUM(Deaths) AS Deaths, 
+                   SUM(Recovered) AS Recovered
+            FROM covid_data
+            GROUP BY `Country.Region`
+            ORDER BY Confirmed DESC;
+        """
+        # Read query results into DataFrame
+        df = pd.read_sql_query(query, conn)
+        
+        # Close the connection
+        conn.close()
+
+        # Check if the DataFrame is empty
+        if df.empty:
+            return None  # Return None if no data is fetched
+
+        # Assign rankings
+        df["Confirmed_Rank"] = df["Confirmed"].rank(method="min", ascending=False)
+        df["Deaths_Rank"] = df["Deaths"].rank(method="min", ascending=False)
+        df["Recovered_Rank"] = df["Recovered"].rank(method="min", ascending=False)
+
+        return df
+
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+        return None  # Return None in case of any error
+    
+def fetch_top_countries(metric, db_path="covid_database.db", top_n=5):
+    """Fetches the top N countries for a given metric (Confirmed, Deaths, Recovered)."""
+    conn = sqlite3.connect(db_path)
+    query = f"""
+        SELECT `Country.Region` AS Country, SUM({metric}) AS Total
+        FROM covid_data
+        GROUP BY `Country.Region`
+        ORDER BY Total DESC
+        LIMIT {top_n};
+    """
+    df_top = pd.read_sql_query(query, conn)
+    conn.close()
+    return df_top
+
+def plot_top_countries(metric, title, color):
+    """Plots a bar chart of the top N countries for a given metric."""
+    df_top = fetch_top_countries(metric)
+
+    fig = px.bar(
+        df_top, x="Total", y="Country", orientation="h", 
+        title=title, color="Total", color_continuous_scale=color
+    )
+    fig.update_layout(yaxis=dict(categoryorder="total ascending"), height=400)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+
 def plot_us_county_geographic_heatmap(df):
     """
     Creates a geographic heatmap showing COVID-19 Confirmed cases and Deaths by US counties.
@@ -950,6 +1013,8 @@ def country_dashboard_page(selected_country, start_date, end_date, db_path="covi
         .box-rose { background-color: #FDE2E4; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); margin-bottom: 15px; }
         </style>
     """, unsafe_allow_html=True)
+    
+
 
 
     # -------- DASHBOARD HEADER -------- #
@@ -1343,11 +1408,64 @@ def user_controlled_analysis_page():
         analysis_choice = st.selectbox(
             "Choose what you want to analyze:",
             ["Select Analysis Option...",
-            "Compare Two Countries",
+            "Compare Two Countries", "Compare Two Regions", "Country rankings", "region rankings",
             "Death vs Population Scatter",
             "Confirmed vs Population Scatter"]
         )
+    
+    if analysis_choice == "Country rankings":
+        st.subheader("🏆 Top 5 Countries by Cases, Deaths, and Recoveries")
 
+        # Top 5 Country Ranking Plots
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            plot_top_countries("Confirmed", "Top 5 Countries by Confirmed Cases", "Blues")
+
+        with col2:
+            plot_top_countries("Deaths", "Top 5 Countries by Deaths", "Reds")
+
+        with col3:
+            plot_top_countries("Recovered", "Top 5 Countries by Recoveries", "Greens")
+        
+        # Spacer for separation
+        st.markdown("<br><hr><br>", unsafe_allow_html=True)
+
+        # Country Ranking Dropdown and Display Rankings
+        st.subheader("🔍 Check a Country's Ranking")
+    
+        # Fetch rankings
+        df_rankings = fetch_country_rankings()
+
+        if df_rankings is not None:
+            # Get a sorted list of unique countries in alphabetical order
+            sorted_countries = sorted(df_rankings["Country.Region"].unique())
+
+            # Country selection dropdown with sorted country names
+            selected_country = st.selectbox("Choose a country to see its ranking:", sorted_countries)
+
+            # Get country ranking data
+            country_data = df_rankings[df_rankings["Country.Region"] == selected_country]
+
+            # Check if country data is available
+            if not country_data.empty:
+                confirmed = int(country_data["Confirmed"].values[0])
+                deaths = int(country_data["Deaths"].values[0])
+                recovered = int(country_data["Recovered"].values[0])
+                confirmed_rank = int(country_data["Confirmed_Rank"].values[0])
+                deaths_rank = int(country_data["Deaths_Rank"].values[0])
+                recovered_rank = int(country_data["Recovered_Rank"].values[0])
+
+                # Display the rankings along with the confirmed, deaths, and recovered cases
+                st.write(f"Rankings for {selected_country}:")
+                st.write(f"Confirmed Cases Rank: {confirmed_rank} (Confirmed: {confirmed:,})")
+                st.write(f"Deaths Rank: {deaths_rank} ( Deaths: {deaths:,})")
+                st.write(f"Recovered Cases Rank: {recovered_rank} ( Recovered: {recovered:,})")
+            else:
+                st.write(f"Sorry, there isn't enough data available for {selected_country}.")
+        else:
+            st.write("No rankings data available.")
+        
     if analysis_choice == "Compare Two Countries":
         country_list = fetch_country_list()
         col_a, col_b = st.columns(2)
