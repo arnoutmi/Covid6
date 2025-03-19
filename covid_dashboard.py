@@ -42,6 +42,20 @@ def fetch_region_list(db_path="covid_database.db"):
     conn.close()
     return regions
 
+def fetch_us_county_list(db_path="covid_database.db"):
+    """
+    Fetches the list of unique USA counties from the usa_county_wise table.
+    """
+    import sqlite3
+    import pandas as pd
+
+    conn = sqlite3.connect(db_path)
+    query = "SELECT DISTINCT Province_State FROM usa_county_wise ORDER BY Province_State"
+    county_list = pd.read_sql_query(query, conn)["Province_State"].tolist()
+    conn.close()
+
+    return county_list
+
 def fetch_country_data(country, db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
     query = """
@@ -98,6 +112,35 @@ def fetch_global_data_filtered(start_date, end_date, db_path="covid_database.db"
     conn.close()
     df["Date"] = pd.to_datetime(df["Date"])
     return df[(df['Date'] >= pd.to_datetime(start_date)) & (df['Date'] <= pd.to_datetime(end_date))]
+
+def fetch_top_us_counties(db_path="covid_database.db"):
+    import sqlite3
+    import pandas as pd
+
+    conn = sqlite3.connect(db_path)
+
+    # Top 5 Counties by Deaths (latest date)
+    deaths_query = """
+        SELECT Province_State AS County, SUM(Deaths) AS Total_Deaths
+        FROM usa_county_wise
+        GROUP BY Province_State
+        ORDER BY Total_Deaths DESC
+        LIMIT 5;
+    """
+    deaths_df = pd.read_sql_query(deaths_query, conn)
+
+    # Top 5 Counties by Confirmed Cases (latest date)
+    cases_query = """
+        SELECT Province_State AS County, SUM(Confirmed) AS Total_Cases
+        FROM usa_county_wise
+        GROUP BY Province_State
+        ORDER BY Total_Cases DESC
+        LIMIT 5;
+    """
+    cases_df = pd.read_sql_query(cases_query, conn)
+
+    conn.close()
+    return deaths_df, cases_df
 
 def calculate_global_metrics(df):
     df = df.sort_values('Date')
@@ -226,11 +269,16 @@ def estimate_parameters_for_region(region, db_path="covid_database.db"):
 def fetch_country_wise_data(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
     query = """
-        SELECT `Country.Region`, SUM(Confirmed) AS Confirmed, SUM(Active) AS Active,
-               SUM(Recovered) AS Recovered, SUM(Deaths) AS Deaths
+    SELECT cd.`Country.Region`, cd.Confirmed, cd.Active, cd.Recovered, cd.Deaths
+    FROM covid_data cd
+    INNER JOIN (
+        SELECT `Country.Region`, MAX(Date) as max_date
         FROM covid_data
         GROUP BY `Country.Region`
-    """
+    ) latest
+    ON cd.`Country.Region` = latest.`Country.Region` AND cd.Date = latest.max_date
+"""
+
     df_country = pd.read_sql_query(query, conn)
     conn.close()
     return df_country
@@ -249,6 +297,34 @@ def display_dynamic_sir_insights(df_params):
     - **γ**: On average, individuals stay infected for **4.5 days** (assumed fixed average based on WHO estimates).
     - **μ**: In **{highest_mu['Country']}**, the estimated mortality rate of the virus is **{highest_mu['Mu']:.2%}** — highest estimated death rate among countries.
     """)
+
+def fetch_top_us_counties_by_latest(start_date, end_date, db_path="covid_database.db"):
+    conn = sqlite3.connect(db_path)
+
+    # Deaths based on latest available data within the range
+    deaths_query = f"""
+        SELECT Province_State AS County, MAX(Deaths) AS Total_Deaths
+        FROM usa_county_wise
+        WHERE Date <= '{end_date}'
+        GROUP BY Province_State
+        ORDER BY Total_Deaths DESC
+        LIMIT 5;
+    """
+    deaths_df = pd.read_sql_query(deaths_query, conn)
+
+    # Cases based on latest available data within the range
+    cases_query = f"""
+        SELECT Province_State AS County, MAX(Confirmed) AS Total_Cases
+        FROM usa_county_wise
+        WHERE Date <= '{end_date}'
+        GROUP BY Province_State
+        ORDER BY Total_Cases DESC
+        LIMIT 5;
+    """
+    cases_df = pd.read_sql_query(cases_query, conn)
+
+    conn.close()
+    return deaths_df, cases_df
 
 def plot_global_active_cases_per_population(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
@@ -449,13 +525,19 @@ def plot_top5_death_rate_chart(region, db_path="covid_database.db"):
     """
     conn = sqlite3.connect(db_path)
     query_top5_death_rate = """
-    SELECT `Country.Region`, SUM(Deaths)*1.0 / SUM(Confirmed) AS DeathRate
+    SELECT cd.`Country.Region`, (cd.Deaths * 1.0 / cd.Confirmed) AS DeathRate
+    FROM covid_data cd
+    INNER JOIN (
+    SELECT `Country.Region`, MAX(Date) as max_date
     FROM covid_data
     WHERE Confirmed > 0 AND Region = ?
     GROUP BY `Country.Region`
+    ) latest
+    ON cd.`Country.Region` = latest.`Country.Region` AND cd.Date = latest.max_date
+    WHERE cd.Confirmed > 0
     ORDER BY DeathRate DESC
-    LIMIT 5;
-    """
+    LIMIT 5;"""
+
     top5_death_rate = pd.read_sql_query(query_top5_death_rate, conn, params=(region,))
     top5_death_rate['DeathRate'] = top5_death_rate['DeathRate'] * 100  # Convert to percentage
     conn.close()
@@ -650,6 +732,33 @@ def plot_moving_average_trend(df, window=7):
     
     fig = px.line(df, x="Date", y="Moving Avg", markers=True, color_discrete_sequence=['blue'],
                   labels={"Moving Avg": f"{window}-Day Avg Cases"})
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_us_county_geographic_heatmap(df):
+    """
+    Creates a geographic heatmap showing COVID-19 Confirmed cases and Deaths by US counties.
+    """
+    # Get the latest available date
+    df["Date"] = pd.to_datetime(df["Date"])
+    latest_date = df["Date"].max()
+    df_latest = df[df["Date"] == latest_date]
+
+    # Create the scatter_geo plot
+    fig = px.scatter_geo(
+    df_latest,
+    lat="Lat",
+    lon="Long_",
+    size="Confirmed",
+    color="Deaths",
+    hover_name="Combined_Key",
+    scope='usa',
+    color_continuous_scale="viridis",  # 🔥 Brighter contrast
+    title=f"COVID-19 Geographic Distribution of US Counties (as of {latest_date.date()})",
+)
+
+    fig.update_layout(height=600)
+
+    # Streamlit plot
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_death_vs_population_by_region(db_path="covid_database.db"):
@@ -1096,6 +1205,61 @@ def region_dashboard_page(selected_region, start_date, end_date, db_path="covid_
     st.markdown("---")
     st.markdown("*For educational and research purposes only*")
 
+def us_county_summary_dashboard(start_date, end_date, db_path="covid_database.db"):
+    import streamlit as st
+    import plotly.express as px
+
+    deaths_df, cases_df = fetch_top_us_counties_by_latest(start_date, end_date)
+
+    st.header("🇺🇸 US Counties with Highest COVID-19 Impact")
+
+    col1, col2=  st.columns(2)
+
+    with col1:
+        st.subheader("💀 Top 5 Counties by Deaths")
+        fig_deaths = px.bar(
+            deaths_df,
+            x="Total_Deaths",
+            y="County",
+            orientation='h',
+            color="Total_Deaths",
+            color_continuous_scale="Reds",
+            labels={"Total_Deaths": "Total Deaths", "County": "County"},
+            title="Top 5 Deadliest Counties (Latest)"
+        )
+        st.plotly_chart(fig_deaths, use_container_width=True)
+
+    with col2:
+        st.subheader("🦠 Top 5 Counties by Cases")
+        fig_cases = px.bar(
+            cases_df,
+            x="Total_Cases",
+            y="County",
+            orientation='h',
+            color="Total_Cases",
+            color_continuous_scale="Blues",
+            labels={"Total_Cases": "Total Cases", "County": "County"},
+            title="Top 5 Counties with Most Cases (Latest)"
+        )
+        st.plotly_chart(fig_cases, use_container_width=True)
+    
+    st.markdown("---")
+    st.subheader("🗺 COVID-19 Geographic Heatmap of US Counties")
+
+    # Fetch data for heatmap
+    conn = sqlite3.connect(db_path)
+    geo_query = """
+        SELECT Date, Lat, Long_, Confirmed, Deaths, Combined_Key
+        FROM usa_county_wise
+    """
+    geo_df = pd.read_sql_query(geo_query, conn)
+    conn.close()
+
+    # Plot the geographic heatmap using your function
+    plot_us_county_geographic_heatmap(geo_df)
+    st.markdown("---")
+    st.markdown("*Data visualized by the COVID-19 Analytics Dashboard*")
+
 def home_page_analytics(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
 
@@ -1271,7 +1435,7 @@ def user_controlled_analysis_page():
 # -------- SIDEBAR NAVIGATION -------- #
 
 st.sidebar.title("📊 COVID-19 Dashboard")
-menu = st.sidebar.radio("Navigate", ["Home", "Global Data", "Region Data", "Country Data", "User-Controlled Analysis"])
+menu = st.sidebar.radio("Navigate", ["Home", "Global Data", "Region Data", "Country Data", "USA County Data", "User-Controlled Analysis"])
 
 # Filters for region and country view
 region_list = fetch_region_list()
@@ -1296,11 +1460,11 @@ elif menu == "Global Data":
 elif menu == "Region Data" and selected_region:
     region_dashboard_page(selected_region, start_date, end_date)
 
-
-
 elif menu == "Country Data" and selected_country:
     country_dashboard_page(selected_country, start_date, end_date)
 
+elif menu == "USA County Data":
+    us_county_summary_dashboard(start_date, end_date)
 elif menu == "User-Controlled Analysis":
     user_controlled_analysis_page()
 
