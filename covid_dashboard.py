@@ -1569,8 +1569,23 @@ end_date = st.sidebar.date_input("End Date", datetime(2020, 7, 27))
 # -------- MAIN PAGE CONTENT -------- #
 
 if menu == "Home":
-    home_page_analytics()
+    st.title("Welcome to the Covid-19 Analytics Dashboard")
+    
+    st.write(
+        """
+        Welcome to the dashboard displaying analytics on the Covid pandemic.
+        
+        Hover over the different analysis segments on the left of the dashboard and select the scale you are interested in.
+        Per category, different analysis figures will be displayed to help your understanding of the Covid development during the selected time period.
+        
+        You can adjust the Region or Country and the time period using the drop-down menu.
+        
+        Under **Further Analysis**, you will find more insights and can even compare the Covid development of different countries!
+        """
+    )
 
+    home_page_analytics()
+    
 elif menu == "Global Data":
     global_dashboard_page(start_date, end_date)
 
