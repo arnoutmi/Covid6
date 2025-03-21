@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import statsmodels as sm
 import plotly.graph_objects as go
+from scipy.optimize import curve_fit
 
 
 # -------- PAGE CONFIG -------- #
@@ -633,16 +634,21 @@ def plot_case_distribution_pie_chart(df, region, ax):
 def plot_daily_new_cases(df):
     df['New Cases'] = df['Confirmed'].diff()
     fig = px.bar(
-        df, x='Date', y='New Cases', color='New Cases', color_continuous_scale='Blues',
+        df, x='Date', y='New Cases',
         labels={"New Cases": "Daily New Cases"},
-        title= 'Daily New Cases'
+        title='Daily New Cases'
     )
+    
+    # Set all bars to Steel Blue (#4682B4)
+    fig.update_traces(marker_color='#4682B4')
+
     fig.update_layout(
         height=300,
         width=600,
         margin=dict(l=20, r=20, t=50, b=20),
         showlegend=False
     )
+    
     return fig
 
 def plot_deaths_over_time(df):
@@ -785,15 +791,20 @@ def fetch_top_countries(metric, db_path="covid_database.db", top_n=5):
     return df_top
 
 def plot_top_countries(metric, title, color):
-    """Plots a bar chart of the top N countries for a given metric."""
-    df_top = fetch_top_countries(metric)
+    """Plots a bar chart of the top N countries for a given metric with a uniform color."""
+    df_top = fetch_top_countries(metric)  # Ensure this function returns a valid dataframe
 
     fig = px.bar(
         df_top, x="Total", y="Country", orientation="h", 
-        title=title, color="Total", color_continuous_scale=color
+        title=title
     )
+    
+    # Apply the given color to all bars
+    fig.update_traces(marker=dict(color=color))
+
     fig.update_layout(yaxis=dict(categoryorder="total ascending"), height=400)
     st.plotly_chart(fig, use_container_width=True)
+
 
 
 
@@ -917,11 +928,6 @@ def plot_confirmed_vs_population_by_region(db_path="covid_database.db"):
     Scatter plot comparing total confirmed cases (latest date) vs population for each country.
     Colors indicate the region (from covid_data).
     """
-    import sqlite3
-    import pandas as pd
-    import plotly.express as px
-    import streamlit as st
-
     conn = sqlite3.connect(db_path)
 
     # Get latest date in covid_data
@@ -993,6 +999,48 @@ def plot_confirmed_vs_population_by_region(db_path="covid_database.db"):
 
     st.plotly_chart(fig, use_container_width=True)
 
+# Define SIR Model function
+def sir_model(S, I, R, beta, gamma, days):
+    N = S + I + R
+    S_list, I_list, R_list = [S], [I], [R]
+
+    for _ in range(days):
+        new_infected = beta * S * I / N
+        new_recovered = gamma * I
+
+        S -= new_infected
+        I += new_infected - new_recovered
+        R += new_recovered
+
+        S_list.append(S)
+        I_list.append(I)
+        R_list.append(R)
+
+    return S_list, I_list, R_list
+
+# Function to plot SIR Model
+def plot_sir_model(S, I, R, days):
+    plt.figure(figsize=(10, 5))
+    plt.plot(S, label="Susceptible", color="blue")
+    plt.plot(I, label="Infected", color="red")
+    plt.plot(R, label="Recovered", color="green")
+    plt.xlabel("Days")
+    plt.ylabel("Population")
+    plt.title("SIR Model Simulation")
+    plt.legend()
+    plt.grid()
+    st.pyplot(plt)
+
+# Function to compute R₀
+def calculate_R0(beta, gamma):
+    return beta / gamma
+
+# Function to compute herd immunity threshold
+def herd_immunity_threshold(R0):
+    return 1 - (1 / R0)
+
+
+    
 def country_dashboard_page(selected_country, start_date, end_date, db_path="covid_database.db"):
     # Fetch country data
     df_country = fetch_country_data(selected_country)
@@ -1408,9 +1456,8 @@ def user_controlled_analysis_page():
         analysis_choice = st.selectbox(
             "Choose what you want to analyze:",
             ["Select Analysis Option...",
-            "Compare Two Countries", "Compare Two Regions", "Country rankings", "region rankings",
-            "Death vs Population Scatter",
-            "Confirmed vs Population Scatter"]
+            "Compare Two Countries","Country rankings", "Death vs Population Scatter",
+            "Confirmed vs Population Scatter","SIR Analysis"]
         )
     
     if analysis_choice == "Country rankings":
@@ -1420,13 +1467,13 @@ def user_controlled_analysis_page():
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            plot_top_countries("Confirmed", "Top 5 Countries by Confirmed Cases", "Blues")
+            plot_top_countries("Confirmed", "Top 5 Countries by Confirmed Cases", "#4682B4")
 
         with col2:
-            plot_top_countries("Deaths", "Top 5 Countries by Deaths", "Reds")
+            plot_top_countries("Deaths", "Top 5 Countries by Deaths", "#B22222")
 
         with col3:
-            plot_top_countries("Recovered", "Top 5 Countries by Recoveries", "Greens")
+            plot_top_countries("Recovered", "Top 5 Countries by Recoveries", "#2E8B57")
         
         # Spacer for separation
         st.markdown("<br><hr><br>", unsafe_allow_html=True)
@@ -1458,9 +1505,9 @@ def user_controlled_analysis_page():
 
                 # Display the rankings along with the confirmed, deaths, and recovered cases
                 st.write(f"Rankings for {selected_country}:")
-                st.write(f"Confirmed Cases Rank: {confirmed_rank} (Confirmed: {confirmed:,})")
-                st.write(f"Deaths Rank: {deaths_rank} ( Deaths: {deaths:,})")
-                st.write(f"Recovered Cases Rank: {recovered_rank} ( Recovered: {recovered:,})")
+                st.write(f"Confirmed Cases Rank: {confirmed_rank} ({confirmed:,})")
+                st.write(f"Deaths Rank: {deaths_rank} ({deaths:,})")
+                st.write(f"Recovered Cases Rank: {recovered_rank} ({recovered:,})")
             else:
                 st.write(f"Sorry, there isn't enough data available for {selected_country}.")
         else:
@@ -1549,6 +1596,38 @@ def user_controlled_analysis_page():
     elif analysis_choice == "Confirmed vs Population Scatter":
         st.subheader("🌍 Scatter Plot: Total Confirmed Cases vs Population by Region")
         plot_confirmed_vs_population_by_region()
+        
+    if analysis_choice == "SIR Analysis":
+        st.subheader("📊 SIR Model Analysis")
+
+        # Inputs for SIR Model Simulation
+        population = st.number_input("Total Population (N)", min_value=1000, value=1000000, step=1000)
+        initial_infected = st.number_input("Initial Infected (I₀)", min_value=1, value=10, step=1)
+        initial_recovered = st.number_input("Initial Recovered (R₀)", min_value=0, value=0, step=1)
+        beta = st.slider("Infection Rate (β)", 0.0, 1.0, 0.2, 0.01)
+        gamma = st.slider("Recovery Rate (γ)", 0.0, 1.0, 0.1, 0.01)
+        days = st.slider("Days to Simulate", 1, 365, 180, 1)
+
+        if st.button("Run SIR Model"):
+            S = population - initial_infected - initial_recovered
+            I = initial_infected
+            R = initial_recovered
+
+            # Run SIR model
+            S_list, I_list, R_list = sir_model(S, I, R, beta, gamma, days)
+
+            # Plot SIR Simulation
+            plot_sir_model(S_list, I_list, R_list, days)
+
+            # Compute R₀
+            R0 = calculate_R0(beta, gamma)
+            st.write(f"🔹 **Basic Reproduction Number (R₀):** {R0:.2f}")
+
+            # Compute Herd Immunity Threshold
+            herd_threshold = herd_immunity_threshold(R0)
+            st.write(f"🔹 **Herd Immunity Threshold:** {herd_threshold:.2%}")
+            
+    
 
 # -------- SIDEBAR NAVIGATION -------- #
 
