@@ -24,21 +24,21 @@ This project uses some libraries and packages in python that have to be installe
 ## Contributors
 This project consisted of various phases. 
 
-Phase 1 was mostly adding the databases in our repository and handling the missing and duplicate values. Handling these values can be done in various ways and all methods were explored and written. Using trial and error we have selected the best methods to handle these value types in our opinion. 
-Phase 2 consisted of writing methods that took dataframes and convert that data into several chart types. 
-Phase 3 contained introducing queries to select different parts of the data en then assigning that data to a dataframe and testing these dataframes with the methods written in Phase 2.
-Phase 4 creating the actual dashboard so that the charts are interactive and the dashboard is easy to navigate through for the users.
-Phase 5 consisted of the finishing touches, writing the README file, fixing the last errors, and making sure everything runs smoothly.
+Phase 1 was mostly adding the databases in our repository and handling the missing and duplicate values. Handling these values can be done in various ways and all methods were explored and written. Using trial and error we have selected the best methods to handle these value types in our opinion.   
+Phase 2 consisted of writing methods that took dataframes and convert that data into several chart types.   
+Phase 3 contained introducing queries to select different parts of the data en then assigning that data to a dataframe and testing these dataframes with the methods written in Phase 2.  
+Phase 4 creating the actual dashboard so that the charts are interactive and the dashboard is easy to navigate through for the users.  
+Phase 5 consisted of the finishing touches, writing the README file, fixing the last errors, and making sure everything runs smoothly.  
 
 ### Our team
-Niek Gijsen - contributor to phase 2, phase 3, phase 4 regional, phase 5
-Arnout Michels - contributor to phase 2, phase 3, phase 4 country scale, phase 5
-Mark Piperas - contributor to phase 2, phase 3, phase 4 gobally, phase 5
-Xu Yan Smits - contributor to phase 1, phase 2, phase 3, phase 5 README file
+Niek Gijsen - contributor to phase 2, phase 3, phase 4 regional, phase 5  
+Arnout Michels - contributor to phase 2, phase 3, phase 4 country scale, phase 5  
+Mark Piperas - contributor to phase 2, phase 3, phase 4 gobally, phase 5  
+Xu Yan Smits - contributor to phase 1, phase 2, phase 3, phase 5 README file  
 
 ## Contact
-Questions or suggestions? Get in touch:
-Niek Gijsen - n.gijsen@student.vu.nl
-Arnout Michels - a.s.michels@student.vu.nl
-Mark Piperas - m.piperas@student.vu.nl
-Xu Yan Smits - x.y.g.smits@student.vu.nl
+Questions or suggestions? Get in touch:  
+Niek Gijsen - n.gijsen@student.vu.nl  
+Arnout Michels - a.s.michels@student.vu.nl  
+Mark Piperas - m.piperas@student.vu.nl  
+Xu Yan Smits - x.y.g.smits@student.vu.nl  
