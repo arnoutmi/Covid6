@@ -1659,7 +1659,7 @@ if menu == "Home":
         
         You can adjust the Region or Country and the time period using the drop-down menu.
         
-        Under **Further Analysis**, you will find more insights and can even compare the Covid development of different countries!
+        Under **User controlled analysis**, you will find more insights and can even compare the Covid development of different countries!
         """
     )
 
