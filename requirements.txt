@@ -1,11 +1,10 @@
-streamlit 
-pandas 
-sqlite3
-datetime
-plotly.express
-numpy 
-matplotlib.pyplot 
+streamlit
+pandas
+sqlite3  
+datetime  
+plotly
+numpy
+matplotlib
 statsmodels
-plotly.graph_objects 
-scipy.optimize   curve_fit
-seaborn
+scipy
+
