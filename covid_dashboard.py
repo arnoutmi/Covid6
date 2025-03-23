@@ -1350,12 +1350,26 @@ def us_county_summary_dashboard(db_path="covid_database.db"):
 def home_page_analytics(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
 
+
     # Title for Home Page
+
+
     st.title("Global COVID-19 Insights and Epidemiological Analysis")
-    st.markdown("""
-    Welcome to the COVID-19 Data Analytics Dashboard — providing key insights on global pandemic trends, 
-    mortality rates, and advanced epidemiological parameters (SIR-D Model) estimated from real-world data.
-    """)
+    st.write(
+        """
+        Welcome to the dashboard displaying analytics on the Covid pandemic.
+        
+        Hover over the different analysis segments on the left of the dashboard and select the scale you are interested in.
+        Per category, different analysis figures will be displayed to help your understanding of the Covid development during the selected time period.
+        
+        You can adjust the Region or Country and the time period using the drop-down menu.
+        
+        Under **User controlled analysis**, you will find more insights and can even compare the Covid development of different countries!
+        """
+    )
+
+   
+   
 
     # --- Fetch Top 5 Death Rate Countries for Graph --- #
     query_top5_death = """
@@ -1623,20 +1637,6 @@ if menu in ["Global Data", "Region Data", "Country Data"]:
 # -------- MAIN PAGE CONTENT -------- #
 
 if menu == "Home":
-    st.title("Welcome to the Covid-19 Analytics Dashboard")
-    
-    st.write(
-        """
-        Welcome to the dashboard displaying analytics on the Covid pandemic.
-        
-        Hover over the different analysis segments on the left of the dashboard and select the scale you are interested in.
-        Per category, different analysis figures will be displayed to help your understanding of the Covid development during the selected time period.
-        
-        You can adjust the Region or Country and the time period using the drop-down menu.
-        
-        Under **User controlled analysis**, you will find more insights and can even compare the Covid development of different countries!
-        """
-    )
 
     home_page_analytics()
     
