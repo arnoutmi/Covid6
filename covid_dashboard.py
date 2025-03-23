@@ -43,19 +43,6 @@ def fetch_region_list(db_path="covid_database.db"):
     conn.close()
     return regions
 
-def fetch_us_county_list(db_path="covid_database.db"):
-    """
-    Fetches the list of unique USA counties from the usa_county_wise table.
-    """
-    import sqlite3
-    import pandas as pd
-
-    conn = sqlite3.connect(db_path)
-    query = "SELECT DISTINCT Province_State FROM usa_county_wise ORDER BY Province_State"
-    county_list = pd.read_sql_query(query, conn)["Province_State"].tolist()
-    conn.close()
-
-    return county_list
 
 def fetch_country_data(country, db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
@@ -299,33 +286,6 @@ def display_dynamic_sir_insights(df_params):
     - **μ**: In **{highest_mu['Country']}**, the estimated mortality rate of the virus is **{highest_mu['Mu']:.2%}** — highest estimated death rate among countries.
     """)
 
-def fetch_top_us_counties_by_latest(start_date, end_date, db_path="covid_database.db"):
-    conn = sqlite3.connect(db_path)
-
-    # Deaths based on latest available data within the range
-    deaths_query = f"""
-        SELECT Province_State AS County, MAX(Deaths) AS Total_Deaths
-        FROM usa_county_wise
-        WHERE Date <= '{end_date}'
-        GROUP BY Province_State
-        ORDER BY Total_Deaths DESC
-        LIMIT 5;
-    """
-    deaths_df = pd.read_sql_query(deaths_query, conn)
-
-    # Cases based on latest available data within the range
-    cases_query = f"""
-        SELECT Province_State AS County, MAX(Confirmed) AS Total_Cases
-        FROM usa_county_wise
-        WHERE Date <= '{end_date}'
-        GROUP BY Province_State
-        ORDER BY Total_Cases DESC
-        LIMIT 5;
-    """
-    cases_df = pd.read_sql_query(cases_query, conn)
-
-    conn.close()
-    return deaths_df, cases_df
 
 def plot_global_active_cases_per_population(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
@@ -611,25 +571,6 @@ def plot_top5_deaths_bar_region(selected_region, start_date, end_date, db_path="
     )
 
     return fig
-
-def plot_case_distribution_pie_chart(df, region, ax):
-    """
-    Plots a pie chart showing the distribution of active cases, recovered cases, and deaths for a specific region.
-    """
-    # Calculate the total numbers
-    total_active = df["Active"].sum()
-    total_recovered = df["Recovered"].sum()
-    total_deaths = df["Deaths"].sum()
-
-    # Data for the pie chart
-    labels = ['Active Cases', 'Recovered Cases', 'Deaths']
-    sizes = [total_active, total_recovered, total_deaths]
-    colors = ['blue', 'green', 'red']
-
-    # Plotting the pie chart
-    ax.pie(sizes, labels=labels, colors=colors, startangle=90)
-    
-    ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 
 def plot_daily_new_cases(df):
     df['New Cases'] = df['Confirmed'].diff()
@@ -1039,7 +980,6 @@ def calculate_R0(beta, gamma):
 def herd_immunity_threshold(R0):
     return 1 - (1 / R0)
 
-
     
 def country_dashboard_page(selected_country, start_date, end_date, db_path="covid_database.db"):
     # Fetch country data
@@ -1067,7 +1007,7 @@ def country_dashboard_page(selected_country, start_date, end_date, db_path="covi
 
     # -------- DASHBOARD HEADER -------- #
     st.markdown(f"""
-    <h4 style='text-align: center;'>🌍 COVID-19 Analytics Dashboard for {selected_country}</h4>
+    <h4 style='text-align: center;'>COVID-19 Analytics Dashboard for {selected_country}</h4>
     <h6 style='text-align: center;'>Analysis Period: <b>{start_date.strftime('%Y-%m-%d')}</b> to <b>{end_date.strftime('%Y-%m-%d')}</b></h6>
     <hr style='border:1px solid #e0e0e0;'>
     """, unsafe_allow_html=True)
@@ -1081,7 +1021,7 @@ def country_dashboard_page(selected_country, start_date, end_date, db_path="covi
     with col1:
         st.markdown(f"""
         <div class="box-yellow">
-            <h4>📊 {selected_country} Metrics</h4>
+            <h4>{selected_country} Metrics</h4>
             <p><b>Total Confirmed Cases:</b> {total_confirmed:,}</p>
             <p><b>Total Deaths:</b> {total_deaths:,}</p>
             <p><b>Mortality Rate (%):</b> {mortality_rate:.2f}%</p>
@@ -1172,7 +1112,7 @@ def global_dashboard_page(start_date, end_date, db_path="covid_database.db"):
 
     # ---------------- DASHBOARD TITLE ---------------- #
     st.markdown("""
-        <h4 style='text-align: center; color: #333333; margin-bottom: 0;'>🌍 Global COVID-19 Analytics Dashboard</h4>
+        <h4 style='text-align: center; color: #333333; margin-bottom: 0;'>Global COVID-19 Analytics Dashboard</h4>
         <h6 style='text-align: center; color: #555555; margin-top: 0;'>Analysis: <b>{}</b> to <b>{}</b></h6>
         <hr style='border:1px solid #e0e0e0;'>
 
@@ -1185,7 +1125,7 @@ def global_dashboard_page(start_date, end_date, db_path="covid_database.db"):
     with col1:
         st.markdown(f"""
         <div class="box-yellow" style="padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-            <h4>📊 Confirmed & Deaths</h4>
+            <h4>Confirmed & Deaths</h4>
             <p><b>Total Confirmed Cases:</b> {total_confirmed:,}</p>
             <p><b>Total Deaths:</b> {total_deaths:,}</p>
             <p><b>Mortality Rate (%):</b> {mortality_rate:.2f}%</p>
@@ -1265,7 +1205,7 @@ def region_dashboard_page(selected_region, start_date, end_date, db_path="covid_
     """, unsafe_allow_html=True)
 
     st.markdown(f"""
-    <h4 style='text-align: center;'>🌎 COVID-19 Analytics Dashboard for {selected_region}</h4>
+    <h4 style='text-align: center;'>COVID-19 Analytics Dashboard for {selected_region}</h4>
     <h6 style='text-align: center;'>Analysis Period: <b>{start_date.strftime('%Y-%m-%d')}</b> to <b>{end_date.strftime('%Y-%m-%d')}</b></h6>
     <hr style='border:1px solid #e0e0e0;'>
     """, unsafe_allow_html=True)
@@ -1278,7 +1218,7 @@ def region_dashboard_page(selected_region, start_date, end_date, db_path="covid_
     with col1:
         st.markdown(f"""
         <div class="box-yellow">
-            <h4>📊 {selected_region} Metrics</h4>
+            <h4>{selected_region} Metrics</h4>
             <p><b>Total Confirmed Cases:</b> {total_confirmed:,}</p>
             <p><b>Total Deaths:</b> {total_deaths:,}</p>
             <p><b>Mortality Rate (%):</b> {mortality_rate:.2f}%</p>
@@ -1318,18 +1258,53 @@ def region_dashboard_page(selected_region, start_date, end_date, db_path="covid_
     st.markdown("---")
     st.markdown("*For educational and research purposes only*")
 
-def us_county_summary_dashboard(start_date, end_date, db_path="covid_database.db"):
+def us_county_summary_dashboard(db_path="covid_database.db"):
     import streamlit as st
     import plotly.express as px
+    import sqlite3
+    import pandas as pd
 
-    deaths_df, cases_df = fetch_top_us_counties_by_latest(start_date, end_date)
+    st.header("US Counties COVID-19 Impact Dashboard")
 
-    st.header("🇺🇸 US Counties with Highest COVID-19 Impact")
+    # Dynamically fetch the latest date from the dataset
+    conn = sqlite3.connect(db_path)
+    latest_date_query = "SELECT MAX(Date) AS latest_date FROM usa_county_wise"
+    latest_date = pd.read_sql_query(latest_date_query, conn).iloc[0]['latest_date']
 
-    col1, col2=  st.columns(2)
+    # Now fetch top 5 counties based on the latest snapshot
+    deaths_query = f"""
+        SELECT Province_State AS County, SUM(Deaths) AS Total_Deaths
+        FROM usa_county_wise
+        WHERE Date = '{latest_date}'
+        GROUP BY Province_State
+        ORDER BY Total_Deaths DESC
+        LIMIT 5;
+    """
+    deaths_df = pd.read_sql_query(deaths_query, conn)
+
+    cases_query = f"""
+        SELECT Province_State AS County, SUM(Confirmed) AS Total_Cases
+        FROM usa_county_wise
+        WHERE Date = '{latest_date}'
+        GROUP BY Province_State
+        ORDER BY Total_Cases DESC
+        LIMIT 5;
+    """
+    cases_df = pd.read_sql_query(cases_query, conn)
+
+    # Fetch the full latest dataset for the heatmap
+    geo_query = f"""
+        SELECT *
+        FROM usa_county_wise
+        WHERE Date = '{latest_date}'
+    """
+    geo_df = pd.read_sql_query(geo_query, conn)
+    conn.close()
+
+    # ---- Bar Plots ----
+    col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("💀 Top 5 Counties by Deaths")
         fig_deaths = px.bar(
             deaths_df,
             x="Total_Deaths",
@@ -1338,12 +1313,11 @@ def us_county_summary_dashboard(start_date, end_date, db_path="covid_database.db
             color="Total_Deaths",
             color_continuous_scale="Reds",
             labels={"Total_Deaths": "Total Deaths", "County": "County"},
-            title="Top 5 Deadliest Counties (Latest)"
+            title=f"Top 5 Deadliest Counties (as of {latest_date})"
         )
         st.plotly_chart(fig_deaths, use_container_width=True)
 
     with col2:
-        st.subheader("🦠 Top 5 Counties by Cases")
         fig_cases = px.bar(
             cases_df,
             x="Total_Cases",
@@ -1352,26 +1326,26 @@ def us_county_summary_dashboard(start_date, end_date, db_path="covid_database.db
             color="Total_Cases",
             color_continuous_scale="Blues",
             labels={"Total_Cases": "Total Cases", "County": "County"},
-            title="Top 5 Counties with Most Cases (Latest)"
+            title=f"Top 5 Counties with Most Cases (as of {latest_date})"
         )
         st.plotly_chart(fig_cases, use_container_width=True)
-    
-    st.markdown("---")
-    st.subheader("🗺 COVID-19 Geographic Heatmap of US Counties")
 
-    # Fetch data for heatmap
-    conn = sqlite3.connect(db_path)
-    geo_query = """
-        SELECT Date, Lat, Long_, Confirmed, Deaths, Combined_Key
-        FROM usa_county_wise
-    """
-    geo_df = pd.read_sql_query(geo_query, conn)
-    conn.close()
+    # ---- Geographic Heatmap ----
 
-    # Plot the geographic heatmap using your function
-    plot_us_county_geographic_heatmap(geo_df)
+    fig_geo = px.scatter_geo(
+        geo_df,
+        lat="Lat",
+        lon="Long_",
+        size="Confirmed",
+        color="Deaths",
+        hover_name="Combined_Key",
+        color_continuous_scale="Viridis",
+        title=f"COVID-19 Geographic Distribution of US Counties (as of {latest_date})"
+    )
+    fig_geo.update_layout(geo_scope='usa')
+    st.plotly_chart(fig_geo, use_container_width=True)
+
     st.markdown("---")
-    st.markdown("*Data visualized by the COVID-19 Analytics Dashboard*")
 
 def home_page_analytics(db_path="covid_database.db"):
     conn = sqlite3.connect(db_path)
@@ -1424,7 +1398,7 @@ def home_page_analytics(db_path="covid_database.db"):
 
     # Left side: Graph
     with col1:
-        st.subheader("⚰️ Top 5 Countries by Death Rate")
+        st.subheader(" Top 5 Countries by Death Rate")
         fig = px.bar(
             top5_death_rate,
             x='DeathRate',
@@ -1440,12 +1414,12 @@ def home_page_analytics(db_path="covid_database.db"):
 
     # Right side: Dynamic SIR-D model insights
     with col2:
-        st.subheader("🧬 SIR-D Parameter Insights (Real Data)")
+        st.subheader("SIR-D Parameter Insights (Real Data)")
         display_dynamic_sir_insights(df_params)
 
 def user_controlled_analysis_page():
     st.markdown("""
-        <h4 style='text-align: center;'>🧠 User-Controlled COVID-19 Analysis</h4>
+        <h4 style='text-align: center;'>User-Controlled COVID-19 Analysis</h4>
         <hr style='border:1px solid #e0e0e0; margin-top:10px;'>
     """, unsafe_allow_html=True)
 
@@ -1628,10 +1602,9 @@ def user_controlled_analysis_page():
             st.write(f"🔹 **Herd Immunity Threshold:** {herd_threshold:.2%}")
             
     
-
 # -------- SIDEBAR NAVIGATION -------- #
 
-st.sidebar.title("📊 COVID-19 Dashboard")
+st.sidebar.title("COVID-19 Dashboard")
 menu = st.sidebar.radio("Navigate", ["Home", "Global Data", "Region Data", "Country Data", "USA County Data", "User-Controlled Analysis"])
 
 # Filters for region and country view
@@ -1641,8 +1614,10 @@ country_list = fetch_country_list()
 selected_region = st.sidebar.selectbox("Select Region", region_list) if menu == "Region Data" else None
 selected_country = st.sidebar.selectbox("Select Country", country_list) if menu == "Country Data" else None
 
-start_date = st.sidebar.date_input("Start Date", datetime(2020, 1, 22))
-end_date = st.sidebar.date_input("End Date", datetime(2020, 7, 27))
+start_date, end_date = None, None
+if menu in ["Global Data", "Region Data", "Country Data"]:
+    start_date = st.sidebar.date_input("Start Date", datetime(2020, 1, 22))
+    end_date = st.sidebar.date_input("End Date", datetime(2020, 7, 27))
 
 
 # -------- MAIN PAGE CONTENT -------- #
@@ -1676,7 +1651,7 @@ elif menu == "Country Data" and selected_country:
     country_dashboard_page(selected_country, start_date, end_date)
 
 elif menu == "USA County Data":
-    us_county_summary_dashboard(start_date, end_date)
+    us_county_summary_dashboard()
 elif menu == "User-Controlled Analysis":
     user_controlled_analysis_page()
 
@@ -1684,6 +1659,6 @@ elif menu == "User-Controlled Analysis":
 
 st.markdown("""
 ---
-Made by Team 🚀 | COVID-19 Data Analytics Dashboard  
+Made by Arnout Michels, Xu Yan, Niek Gijsen en Mark Piperas| COVID-19 Data Analytics Dashboard  
 *For educational and research purposes only*
 """)
